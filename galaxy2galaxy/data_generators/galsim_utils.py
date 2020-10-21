@@ -72,23 +72,23 @@ class GalsimProblem(astroimage_utils.AstroImageProblem):
     p = self.get_hparams()
 
     data_fields = {
-        "image/encoded": tf.FixedLenFeature((), tf.string),
-        "image/format": tf.FixedLenFeature((), tf.string),
+        "image_euclid/encoded": tf.FixedLenFeature((), tf.string),
+        "image_euclid/format": tf.FixedLenFeature((), tf.string),
 
-        "psf/encoded": tf.FixedLenFeature((), tf.string),
-        "psf/format": tf.FixedLenFeature((), tf.string),
+        "psf_euclid/encoded": tf.FixedLenFeature((), tf.string),
+        "psf_euclid/format": tf.FixedLenFeature((), tf.string),
 
-        "ps/encoded": tf.FixedLenFeature((), tf.string),
-        "ps/format": tf.FixedLenFeature((), tf.string),
+        "ps_euclid/encoded": tf.FixedLenFeature((), tf.string),
+        "ps_euclid/format": tf.FixedLenFeature((), tf.string),
         
-        "image2/encoded" : tf.FixedLenFeature((), tf.string),
-        "image2/format" : tf.FixedLenFeature((), tf.string),
+        "image_hst/encoded" : tf.FixedLenFeature((), tf.string),
+        "image_hst/format" : tf.FixedLenFeature((), tf.string),
         
-        "psf2/encoded" : tf.FixedLenFeature((), tf.string),
-        "psf2/format" : tf.FixedLenFeature((), tf.string),
+        "psf_hst/encoded" : tf.FixedLenFeature((), tf.string),
+        "psf_hst/format" : tf.FixedLenFeature((), tf.string),
         
-        "ps2/encoded" : tf.FixedLenFeature((), tf.string),
-        "ps2/format" : tf.FixedLenFeature((), tf.string)
+        "ps_hst/encoded" : tf.FixedLenFeature((), tf.string),
+        "ps_hst/format" : tf.FixedLenFeature((), tf.string)
     }
     
     
@@ -100,45 +100,45 @@ class GalsimProblem(astroimage_utils.AstroImageProblem):
 
     data_items_to_decoders = {
         "inputs": tf.contrib.slim.tfexample_decoder.Image(
-                image_key="image/encoded",
-                format_key="image/format",
+                image_key="image_euclid/encoded",
+                format_key="image_euclid/format",
                 channels=self.num_bands,
                 shape=[p.img_len, p.img_len, self.num_bands],
                 dtype=tf.float32),
 
-        "psf": tf.contrib.slim.tfexample_decoder.Image(
-                image_key="psf/encoded",
-                format_key="psf/format",
+        "psf_euclid": tf.contrib.slim.tfexample_decoder.Image(
+                image_key="psf_euclid/encoded",
+                format_key="psf_euclid/format",
                 channels=self.num_bands,
                 # The factor 2 here is to account for x2 interpolation
                 shape=[2*p.img_len, 2*p.img_len // 2 + 1, self.num_bands],
                 dtype=tf.float32),
 
-        "ps": tf.contrib.slim.tfexample_decoder.Image(
-                image_key="ps/encoded",
-                format_key="ps/format",
+        "ps_euclid": tf.contrib.slim.tfexample_decoder.Image(
+                image_key="ps_euclid/encoded",
+                format_key="ps_euclid/format",
                 channels=self.num_bands,
                 shape=[p.img_len, p.img_len // 2 + 1],
                 dtype=tf.float32),
         
-        "inputs2": tf.contrib.slim.tfexample_decoder.Image(
-                image_key="image2/encoded",
-                format_key="image2/format",
+        "targets": tf.contrib.slim.tfexample_decoder.Image(
+                image_key="image_hst/encoded",
+                format_key="image_hst/format",
                 channels=self.num_bands,
                 shape=[p.img_len, p.img_len, self.num_bands],
                 dtype=tf.float32),
         
-        "psf2": tf.contrib.slim.tfexample_decoder.Image(
-                image_key="psf2/encoded",
-                format_key="psf2/format",
+        "psf_hst": tf.contrib.slim.tfexample_decoder.Image(
+                image_key="psf_hst/encoded",
+                format_key="psf_hst/format",
                 channels=self.num_bands,
                 # The factor 2 here is to account for x2 interpolation
                 shape=[2*p.img_len, 2*p.img_len // 2 + 1, self.num_bands],
                 dtype=tf.float32),
         
-        "ps2": tf.contrib.slim.tfexample_decoder.Image(
-                image_key="ps2/encoded",
-                format_key="ps2/format",
+        "ps_hst": tf.contrib.slim.tfexample_decoder.Image(
+                image_key="ps_hst/encoded",
+                format_key="ps_hst/format",
                 channels=self.num_bands,
                 shape=[p.img_len, p.img_len // 2 + 1],
                 dtype=tf.float32)
@@ -181,23 +181,23 @@ def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None):
     encodes it to be exported in a TFRecord.
     """
 
-    # Apply the PSFs
+    # Apply the PSF
     
-    psf2 = galsim.Gaussian(flux=1., sigma=0.07) # PSF flux should always = 1
-    gal2 = galsim.Convolve(gal, psf2)
+    psf_hst = galsim.Gaussian(flux=1., sigma=0.07) # PSF flux should always = 1
+    gal_hst = galsim.Convolve(gal, psf_hst)
     
-    gal = galsim.Convolve(gal, psf)
+    gal_euclid = galsim.Convolve(gal, psf)
 
     # Draw a kimage of the galaxy, just to figure out what mask is, there might
     # be more efficient ways to do this though...
     bounds = _BoundsI(0, stamp_size//2, -stamp_size//2, stamp_size//2-1)
-    imG = gal.drawKImage(bounds=bounds,
+    imG_euclid = gal_euclid.drawKImage(bounds=bounds,
                          scale=2.*np.pi/(stamp_size * pixel_scale),
                          recenter=False)
-    mask = ~(np.fft.fftshift(imG.array, axes=0) == 0)
+    mask_euclid = ~(np.fft.fftshift(imG_euclid.array, axes=0) == 0)
 
     # We draw the pixel image of the convolved image
-    im = gal.drawImage(nx=stamp_size, ny=stamp_size,  scale=pixel_scale,
+    im_euclid = gal_euclid.drawImage(nx=stamp_size, ny=stamp_size, scale=pixel_scale,
                        method='no_pixel', use_true_center=False).array.astype('float32')
 
     # Draw the Fourier domain image of the galaxy, using x1 zero padding,
@@ -206,91 +206,97 @@ def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None):
     padding_factor=1
     Nk = stamp_size*interp_factor*padding_factor
     bounds = _BoundsI(0, Nk//2, -Nk//2, Nk//2-1)
-    imCp = psf.drawKImage(bounds=bounds,
+    imCp_euclid = psf.drawKImage(bounds=bounds,
                          scale=2.*np.pi/(Nk * pixel_scale / interp_factor),
                          recenter=False)
 
     # Transform the psf array into proper format, remove the phase
-    im_psf = np.abs(np.fft.fftshift(imCp.array, axes=0)).astype('float32')
+    im_psf_euclid = np.abs(np.fft.fftshift(imCp_euclid.array, axes=0)).astype('float32')
 
     # Compute noise power spectrum, at the resolution and stamp size of target
     # image
-    ps = gal.noise._get_update_rootps((stamp_size, stamp_size),
-                                           wcs=galsim.PixelScale(pixel_scale))
+    ps_euclid = gal.noise._get_update_rootps((stamp_size, stamp_size),
+                                       wcs=galsim.PixelScale(pixel_scale))
 
     # The following comes from correlatednoise.py
     rt2 = np.sqrt(2.)
     shape = (stamp_size, stamp_size)
-    ps[0, 0] = rt2 * ps[0, 0]
+    ps_euclid[0, 0] = rt2 * ps_euclid[0, 0]
     # Then make the changes necessary for even sized arrays
     if shape[1] % 2 == 0:  # x dimension even
-        ps[0, shape[1] // 2] = rt2 * ps[0, shape[1] // 2]
+        ps_euclid[0, shape[1] // 2] = rt2 * ps_euclid[0, shape[1] // 2]
     if shape[0] % 2 == 0:  # y dimension even
-        ps[shape[0] // 2, 0] = rt2 * ps[shape[0] // 2, 0]
+        ps_euclid[shape[0] // 2, 0] = rt2 * ps_euclid[shape[0] // 2, 0]
         # Both dimensions even
         if shape[1] % 2 == 0:
-            ps[shape[0] // 2, shape[1] // 2] = rt2 * \
-                ps[shape[0] // 2, shape[1] // 2]
+            ps_euclid[shape[0] // 2, shape[1] // 2] = rt2 * \
+                ps_euclid[shape[0] // 2, shape[1] // 2]
 
     # Apply mask to power spectrum so that it is very large outside maxk
-    ps = np.where(mask, np.log(ps**2), 10).astype('float32')
+    ps_euclid = np.where(mask_euclid, np.log(ps_euclid**2), 10).astype('float32')
     
     
-    # Draw a kimage of the galaxy, just to figure out what maxk is, there might
+    # Draw a kimage of the galaxy, just to figure out what mask is, there might
     # be more efficient ways to do this though...
     bounds = _BoundsI(0, stamp_size//2, -stamp_size//2, stamp_size//2-1)
-    imG2 = gal2.drawKImage(bounds=bounds,
+    imG_hst = gal_hst.drawKImage(bounds=bounds,
                          scale=2.*np.pi/(stamp_size * pixel_scale),
                          recenter=False)
-    mask2 = ~(np.fft.fftshift(imG2.array, axes=0) == 0)
+    mask_hst = ~(np.fft.fftshift(imG_hst.array, axes=0) == 0)
 
     # We draw the pixel image of the convolved image
-    im2 = gal2.drawImage(nx=stamp_size, ny=stamp_size, scale=pixel_scale,
+    im_hst = gal_hst.drawImage(nx=stamp_size, ny=stamp_size, scale=pixel_scale,
                        method='no_pixel', use_true_center=False).array.astype('float32')
 
     # Draw the Fourier domain image of the galaxy, using x1 zero padding,
     # and x2 subsampling
     bounds = _BoundsI(0, Nk//2, -Nk//2, Nk//2-1)
-    imCp2 = psf.drawKImage(bounds=bounds,
+    imCp_hst = psf_hst.drawKImage(bounds=bounds,
                          scale=2.*np.pi/(Nk * pixel_scale / interp_factor),
                          recenter=False)
 
     # Transform the psf array into proper format, remove the phase
-    im_psf2 = np.abs(np.fft.fftshift(imCp2.array, axes=0)).astype('float32')
+    im_psf_hst = np.abs(np.fft.fftshift(imCp_hst.array, axes=0)).astype('float32')
 
 
     # Compute noise power spectrum, at the resolution and stamp size of target
     # image
     
-    ps2 = gal2.noise._get_update_rootps((stamp_size, stamp_size),
+    ps_hst = gal_hst.noise._get_update_rootps((stamp_size, stamp_size),
                                        wcs=galsim.PixelScale(pixel_scale))
     
 
     # The following comes from correlatednoise.py
     shape = (stamp_size, stamp_size)
-    ps2[0, 0] = rt2 * ps2[0, 0]
+    ps_hst[0, 0] = rt2 * ps_hst[0, 0]
     # Then make the changes necessary for even sized arrays
     if shape[1] % 2 == 0:  # x dimension even
-        ps2[0, shape[1] // 2] = rt2 * ps2[0, shape[1] // 2]
+        ps_hst[0, shape[1] // 2] = rt2 * ps_hst[0, shape[1] // 2]
     if shape[0] % 2 == 0:  # y dimension even
-        ps2[shape[0] // 2, 0] = rt2 * ps2[shape[0] // 2, 0]
+        ps_hst[shape[0] // 2, 0] = rt2 * ps_hst[shape[0] // 2, 0]
         # Both dimensions even
         if shape[1] % 2 == 0:
-            ps2[shape[0] // 2, shape[1] // 2] = rt2 * \
-                ps2[shape[0] // 2, shape[1] // 2]
+            ps_hst[shape[0] // 2, shape[1] // 2] = rt2 * \
+                ps_hst[shape[0] // 2, shape[1] // 2]
 
     # Apply mask to power spectrum so that it is very large outside mask
 
-    ps2 = np.where(mask2, np.log(ps2**2), 10).astype('float32')
+    ps_hst = np.where(mask_hst, np.log(ps_hst**2), 10).astype('float32')
 
     
     
-    serialized_output = {"image/encoded": [im.tostring()],
-            "image/format": ["raw"],
-            "psf/encoded": [im_psf.tostring()],
-            "psf/format": ["raw"],
-            "ps/encoded": [ps.tostring()],
-            "ps/format": ["raw"], "image2/encoded" : [im2.tostring()], "image2/format" : ["raw"], "psf2/encoded" : [im_psf2.tostring()], "psf2/format" : ["raw"], "ps2/encoded" : [ps2.tostring()], "ps2/format" : ["raw"]}
+    serialized_output = {"image_euclid/encoded": [im_euclid.tostring()],
+            "image_euclid/format": ["raw"],
+            "psf_euclid/encoded": [im_psf_euclid.tostring()],
+            "psf_euclid/format": ["raw"],
+            "ps_euclid/encoded": [ps_euclid.tostring()],
+            "ps_euclid/format": ["raw"],
+            "image_hst/encoded" : [im_hst.tostring()],
+            "image_hst/format" : ["raw"],
+            "psf_hst/encoded" : [im_psf_hst.tostring()],
+            "psf_hst/format" : ["raw"],
+            "ps_hst/encoded" : [ps_hst.tostring()],
+            "ps_hst/format" : ["raw"]}
     
     
     

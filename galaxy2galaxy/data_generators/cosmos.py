@@ -313,7 +313,7 @@ class Attrs2imgCosmos32(Attrs2imgCosmos):
 
 
 @registry.register_problem
-class Attrs2imgCosmosPSFEuclide(Img2imgCosmos):
+class Attrs2imgCosmosHST2Euclid(Img2imgCosmos):
 
   @property
   def dataset_splits(self):
@@ -324,10 +324,10 @@ class Attrs2imgCosmosPSFEuclide(Img2imgCosmos):
     """
     return [{
         "split": problem.DatasetSplit.TRAIN,
-        "shards": 1,
+        "shards": 80,
     }, {
         "split": problem.DatasetSplit.EVAL,
-        "shards": 1,
+        "shards": 2,
     }]
 
   def hparams(self, defaults, model_hparams):
@@ -336,11 +336,11 @@ class Attrs2imgCosmosPSFEuclide(Img2imgCosmos):
     p.img_len = 64
     p.example_per_shard = 1000
     p.modality = {"inputs": modalities.ModalityType.IDENTITY,
-                  "targets": modalities.ModalityType.IDENTITY, "inputs2": modalities.ModalityType.IDENTITY}
+                  "targets": modalities.ModalityType.IDENTITY}
     p.vocab_size = {"inputs": None,
-                    "targets": None, "inputs2": None}
-    p.add_hparam("psf", None)
-    p.add_hparam("psf2", None)
+                    "targets": None}
+    p.add_hparam("psf_euclid", None)
+    p.add_hparam("psf_hst", None)
     p.add_hparam("rotation", False)
   """ Conditional image generation problem based on COSMOS sample.
   """
@@ -385,18 +385,15 @@ class Attrs2imgCosmosPSFEuclide(Img2imgCosmos):
     cat_param = append_fields(cat_param, 'sersic_hlr', sparams[:,1])
     cat_param = append_fields(cat_param, 'sersic_n', sparams[:,2])
     cat_param = append_fields(cat_param, 'sersic_beta', sparams[:,7])
+    
+    # Generate a Euclid-like PSF
+    lam = 700  # nm
+    diam = 1.3    # meters
+    psf = galsim.OpticalPSF(lam=lam, diam=diam, scale_unit=galsim.arcsec)
 
     for ind in index:
       # Draw a galaxy using GalSim, any kind of operation can be done here
       gal = catalog.makeGalaxy(ind, noise_pad_size=p.img_len * p.pixel_scale*2)
-
-      ##Création d'une PSF au hasard, pour tester la fonction
-
-      lam = 700  # nm
-      diam = 1.3    # meters
-      lam_over_diam = (lam * 1.e-9) / diam  # radians
-      lam_over_diam *= 206265  # Convert to arcsec
-      psf = galsim.OpticalPSF(lam=lam, diam=diam, scale_unit=galsim.arcsec)
 
       # Apply random rotation if requested
       if hasattr(p, "rotation") and p.rotation:
