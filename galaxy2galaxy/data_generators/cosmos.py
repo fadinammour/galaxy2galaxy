@@ -313,7 +313,7 @@ class Attrs2imgCosmos32(Attrs2imgCosmos):
 
 
 @registry.register_problem
-class Attrs2imgCosmosHST2Euclid(Img2imgCosmos):
+class Attrs2imgCosmosEuclid2hst(Img2imgCosmos):
 
   @property
   def dataset_splits(self):
@@ -344,6 +344,26 @@ class Attrs2imgCosmosHST2Euclid(Img2imgCosmos):
     p.add_hparam("rotation", False)
   """ Conditional image generation problem based on COSMOS sample.
   """
+
+  def preprocess_example(self, example, unused_mode, unused_hparams):
+    """ Preprocess the examples, can be used for further augmentation or
+    image standardization.
+    """
+    p = self.get_hparams()
+    image_euclid = example["inputs"]
+    image_hst = example["targets"]
+
+    # Clip to 1 the values of the image
+    # image = tf.clip_by_value(image, -1, 1)
+
+    # Aggregate the conditions
+    if hasattr(p, 'attributes'):
+      example['attributes'] = tf.stack([example[k] for k in p.attributes])
+
+    example["inputs"] = image_euclid
+    example["targets"] = image_hst
+    return example
+
   def generator(self, data_dir, tmp_dir, dataset_split, task_id=-1):
     """
     Generates and yields postage stamps obtained with GalSim.
