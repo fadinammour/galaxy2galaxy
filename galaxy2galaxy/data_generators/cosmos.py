@@ -342,6 +342,7 @@ class Attrs2imgCosmosEuclid2hst(Img2imgCosmos):
     p.add_hparam("psf_euclid", None)
     p.add_hparam("psf_hst", None)
     p.add_hparam("rotation", False)
+    p.attributes = ['mag_auto', 'flux_radius']
   """ Conditional image generation problem based on COSMOS sample.
   """
 
