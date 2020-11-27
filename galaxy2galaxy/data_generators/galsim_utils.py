@@ -20,6 +20,46 @@ import galsim
 import argparse
 from galsim.bounds import _BoundsI
 
+# Path to data files required for cosmos
+_COSMOS_DATA_DIR=os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
+
+class seeing_distribution(object):
+    """ Seeing distribution
+    Provide a seeing following CFIS distribution. Seeing generated from
+    scipy.stats.rv_histogram(np.histogram(obs_seeing)). Object already
+    initialized and saved into a numpy file.
+    Parameters
+    ----------
+    path_to_file: str
+        Path to the numpy file containing the scipy object.
+    seed: int
+        Seed for the random generation. If None rely on default one.
+    """
+    def __init__(self, path_to_file, seed=None):
+        self._file_path = path_to_file
+        self._load_distribution()
+        self._random_seed = None
+        if seed != None:
+            self._random_seed = np.random.RandomState(seed)
+    def _load_distribution(self):
+        """ Load distribution
+        Load the distribution from numpy file.
+        """
+        self._distrib = np.load(self._file_path, allow_pickle=True).item()
+    def get(self, size=None):
+        """ Get
+        Return a seeing value from the distribution.
+        Parameters
+        ----------
+        size: int
+            Number of seeing value required.
+        Returns
+        -------
+        seeing: float (numpy.ndarray)
+            Return the seeing value or a numpy.ndarray if size != None.
+        """
+        return self._distrib.rvs(size=size, random_state=self._random_seed)
+
 class GalsimProblem(astroimage_utils.AstroImageProblem):
   """Base class for image problems generated with GalSim.
 
@@ -30,7 +70,7 @@ class GalsimProblem(astroimage_utils.AstroImageProblem):
   # START: Subclass interface
   def hparams(self, defaults, model_hparams):
     p = defaults
-    p.pixel_scale = 0.03
+    p.pixel_scale = 0.187
     p.img_len = 64
 
   @property
@@ -72,14 +112,14 @@ class GalsimProblem(astroimage_utils.AstroImageProblem):
     p = self.get_hparams()
 
     data_fields = {
-        "image_euclid/encoded": tf.FixedLenFeature((), tf.string),
-        "image_euclid/format": tf.FixedLenFeature((), tf.string),
+        "image_cfht/encoded": tf.FixedLenFeature((), tf.string),
+        "image_cfht/format": tf.FixedLenFeature((), tf.string),
 
-        "psf_euclid/encoded": tf.FixedLenFeature((), tf.string),
-        "psf_euclid/format": tf.FixedLenFeature((), tf.string),
+        "psf_cfht/encoded": tf.FixedLenFeature((), tf.string),
+        "psf_cfhtformat": tf.FixedLenFeature((), tf.string),
 
-        "ps_euclid/encoded": tf.FixedLenFeature((), tf.string),
-        "ps_euclid/format": tf.FixedLenFeature((), tf.string),
+        "ps_cfht/encoded": tf.FixedLenFeature((), tf.string),
+        "ps_cfht/format": tf.FixedLenFeature((), tf.string),
         
         "image_hst/encoded" : tf.FixedLenFeature((), tf.string),
         "image_hst/format" : tf.FixedLenFeature((), tf.string),
@@ -100,23 +140,23 @@ class GalsimProblem(astroimage_utils.AstroImageProblem):
 
     data_items_to_decoders = {
         "inputs": tf.contrib.slim.tfexample_decoder.Image(
-                image_key="image_euclid/encoded",
-                format_key="image_euclid/format",
+                image_key="image_cfht/encoded",
+                format_key="image_cfht/format",
                 channels=self.num_bands,
                 shape=[p.img_len, p.img_len, self.num_bands],
                 dtype=tf.float32),
 
-        "psf_euclid": tf.contrib.slim.tfexample_decoder.Image(
-                image_key="psf_euclid/encoded",
-                format_key="psf_euclid/format",
+        "psf_cfht": tf.contrib.slim.tfexample_decoder.Image(
+                image_key="psf_cfht/encoded",
+                format_key="psf_cfht/format",
                 channels=self.num_bands,
                 # The factor 2 here is to account for x2 interpolation
                 shape=[2*p.img_len, 2*p.img_len // 2 + 1, self.num_bands],
                 dtype=tf.float32),
 
-        "ps_euclid": tf.contrib.slim.tfexample_decoder.Image(
-                image_key="ps_euclid/encoded",
-                format_key="ps_euclid/format",
+        "ps_cfht": tf.contrib.slim.tfexample_decoder.Image(
+                image_key="ps_cfht/encoded",
+                format_key="ps_cfht/format",
                 channels=self.num_bands,
                 shape=[p.img_len, p.img_len // 2 + 1],
                 dtype=tf.float32),
@@ -183,21 +223,37 @@ def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None):
 
     # Apply the PSF
     
-    psf_hst = galsim.Gaussian(flux=1., sigma=0.07) # PSF flux should always = 1
+    psf_hst = psf
     gal_hst = galsim.Convolve(gal, psf_hst)
     
-    gal_euclid = galsim.Convolve(gal, psf)
+    # Generate a CFHT-like PSF
+    seed = 1995
+    fwhm_sampler = seeing_distribution(os.path.join(_COSMOS_DATA_DIR,'seeing_distribution.npy'),seed=seed)
+    fwhm_cfht = fwhm_sampler.get(1)[0]
+    psf = galsim.Kolmogorov(fwhm=fwhm_cfht,flux=1.0)#, scale_unit=galsim.arcsec) ommit units and let be handled withinin wcs
+    
+    g_sigma = 0.01 # standard deviation of the shear distribution
+    def get_g(n_g):
+        g = np.random.normal(0., g_sigma, n_g)
+        while np.linalg.norm(g) > 1:
+            g = np.random.normal(0., g_sigma, n_g)
+        return g
+
+    e1, e2 = get_g(2) #+[cst1, cst2] because the mean of the PSF ellipticity can be different from zero
+    psf_cfht = psf.shear(g1=e1, g2=e2)
+    
+    gal_cfht = galsim.Convolve(gal, psf_cfht)
 
     # Draw a kimage of the galaxy, just to figure out what mask is, there might
     # be more efficient ways to do this though...
     bounds = _BoundsI(0, stamp_size//2, -stamp_size//2, stamp_size//2-1)
-    imG_euclid = gal_euclid.drawKImage(bounds=bounds,
+    imG_cfht = gal_cfht.drawKImage(bounds=bounds,
                          scale=2.*np.pi/(stamp_size * pixel_scale),
                          recenter=False)
-    mask_euclid = ~(np.fft.fftshift(imG_euclid.array, axes=0) == 0)
+    mask_cfht = ~(np.fft.fftshift(imG_cfht.array, axes=0) == 0)
 
     # We draw the pixel image of the convolved image
-    im_euclid = gal_euclid.drawImage(nx=stamp_size, ny=stamp_size, scale=pixel_scale,
+    im_cfht = gal_cfht.drawImage(nx=stamp_size, ny=stamp_size, scale=pixel_scale,
                        method='no_pixel', use_true_center=False).array.astype('float32')
 
     # Draw the Fourier domain image of the galaxy, using x1 zero padding,
@@ -206,34 +262,34 @@ def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None):
     padding_factor=1
     Nk = stamp_size*interp_factor*padding_factor
     bounds = _BoundsI(0, Nk//2, -Nk//2, Nk//2-1)
-    imCp_euclid = psf.drawKImage(bounds=bounds,
+    imCp_cfht = psf.drawKImage(bounds=bounds,
                          scale=2.*np.pi/(Nk * pixel_scale / interp_factor),
                          recenter=False)
 
     # Transform the psf array into proper format, remove the phase
-    im_psf_euclid = np.abs(np.fft.fftshift(imCp_euclid.array, axes=0)).astype('float32')
+    im_psf_cfht = np.abs(np.fft.fftshift(imCp_cfht.array, axes=0)).astype('float32')
 
     # Compute noise power spectrum, at the resolution and stamp size of target
     # image
-    ps_euclid = gal.noise._get_update_rootps((stamp_size, stamp_size),
+    ps_cfht = gal.noise._get_update_rootps((stamp_size, stamp_size),
                                        wcs=galsim.PixelScale(pixel_scale))
 
     # The following comes from correlatednoise.py
     rt2 = np.sqrt(2.)
     shape = (stamp_size, stamp_size)
-    ps_euclid[0, 0] = rt2 * ps_euclid[0, 0]
+    ps_cfht[0, 0] = rt2 * ps_cfht[0, 0]
     # Then make the changes necessary for even sized arrays
     if shape[1] % 2 == 0:  # x dimension even
-        ps_euclid[0, shape[1] // 2] = rt2 * ps_euclid[0, shape[1] // 2]
+        ps_cfht[0, shape[1] // 2] = rt2 * ps_cfht[0, shape[1] // 2]
     if shape[0] % 2 == 0:  # y dimension even
-        ps_euclid[shape[0] // 2, 0] = rt2 * ps_euclid[shape[0] // 2, 0]
+        ps_cfht[shape[0] // 2, 0] = rt2 * ps_cfht[shape[0] // 2, 0]
         # Both dimensions even
         if shape[1] % 2 == 0:
-            ps_euclid[shape[0] // 2, shape[1] // 2] = rt2 * \
-                ps_euclid[shape[0] // 2, shape[1] // 2]
+            ps_cfht[shape[0] // 2, shape[1] // 2] = rt2 * \
+                ps_cfht[shape[0] // 2, shape[1] // 2]
 
     # Apply mask to power spectrum so that it is very large outside maxk
-    ps_euclid = np.where(mask_euclid, np.log(ps_euclid**2), 10).astype('float32')
+    ps_cfht = np.where(mask_cfht, np.log(ps_cfht**2), 10).astype('float32')
     
     
     # Draw a kimage of the galaxy, just to figure out what mask is, there might
@@ -285,12 +341,12 @@ def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None):
 
     
     
-    serialized_output = {"image_euclid/encoded": [im_euclid.tostring()],
-            "image_euclid/format": ["raw"],
-            "psf_euclid/encoded": [im_psf_euclid.tostring()],
-            "psf_euclid/format": ["raw"],
-            "ps_euclid/encoded": [ps_euclid.tostring()],
-            "ps_euclid/format": ["raw"],
+    serialized_output = {"image_cfht/encoded": [im_cfht.tostring()],
+            "image_cfht/format": ["raw"],
+            "psf_cfht/encoded": [im_psf_cfht.tostring()],
+            "psf_cfht/format": ["raw"],
+            "ps_cfht/encoded": [ps_cfht.tostring()],
+            "ps_cfht/format": ["raw"],
             "image_hst/encoded" : [im_hst.tostring()],
             "image_hst/format" : ["raw"],
             "psf_hst/encoded" : [im_psf_hst.tostring()],
