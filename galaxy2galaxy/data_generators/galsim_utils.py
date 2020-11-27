@@ -116,7 +116,7 @@ class GalsimProblem(astroimage_utils.AstroImageProblem):
         "image_cfht/format": tf.FixedLenFeature((), tf.string),
 
         "psf_cfht/encoded": tf.FixedLenFeature((), tf.string),
-        "psf_cfhtformat": tf.FixedLenFeature((), tf.string),
+        "psf_cfht/format": tf.FixedLenFeature((), tf.string),
 
         "ps_cfht/encoded": tf.FixedLenFeature((), tf.string),
         "ps_cfht/format": tf.FixedLenFeature((), tf.string),
