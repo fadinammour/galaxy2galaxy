@@ -8,6 +8,7 @@ import os
 
 from . import galsim_utils
 from . import astroimage_utils
+from . import seeing_distribution_class
 
 from tensor2tensor.data_generators import generator_utils
 from tensor2tensor.data_generators import image_utils
@@ -24,6 +25,43 @@ import galsim
 
 # Path to data files required for cosmos
 _COSMOS_DATA_DIR=os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
+
+class seeing_distribution(object):
+    """ Seeing distribution
+    Provide a seeing following CFIS distribution. Seeing generated from
+    scipy.stats.rv_histogram(np.histogram(obs_seeing)). Object already
+    initialized and saved into a numpy file.
+    Parameters
+    ----------
+    path_to_file: str
+        Path to the numpy file containing the scipy object.
+    seed: int
+        Seed for the random generation. If None rely on default one.
+    """
+    def __init__(self, path_to_file, seed=None):
+        self._file_path = path_to_file
+        self._load_distribution()
+        self._random_seed = None
+        if seed != None:
+            self._random_seed = np.random.RandomState(seed)
+    def _load_distribution(self):
+        """ Load distribution
+        Load the distribution from numpy file.
+        """
+        self._distrib = np.load(self._file_path, allow_pickle=True).item()
+    def get(self, size=None):
+        """ Get
+        Return a seeing value from the distribution.
+        Parameters
+        ----------
+        size: int
+            Number of seeing value required.
+        Returns
+        -------
+        seeing: float (numpy.ndarray)
+            Return the seeing value or a numpy.ndarray if size != None.
+        """
+        return self._distrib.rvs(size=size, random_state=self._random_seed)
 
 @registry.register_problem
 class Img2imgCosmos(galsim_utils.GalsimProblem):
@@ -448,10 +486,10 @@ class Attrs2imgCosmosCfht2hst(Img2imgCosmos):
     """
     return [{
         "split": problem.DatasetSplit.TRAIN,
-        "shards": 1,
+        "shards": 80,
     }, {
         "split": problem.DatasetSplit.EVAL,
-        "shards": 1,
+        "shards": 2,
     }]
 
   def hparams(self, defaults, model_hparams):
@@ -531,14 +569,16 @@ class Attrs2imgCosmosCfht2hst(Img2imgCosmos):
     cat_param = append_fields(cat_param, 'sersic_hlr', sparams[:,1])
     cat_param = append_fields(cat_param, 'sersic_n', sparams[:,2])
     cat_param = append_fields(cat_param, 'sersic_beta', sparams[:,7])
+    
+    np.random.seed(seed=p.seed)
+    fwhm_sampler = seeing_distribution(os.path.join(_COSMOS_DATA_DIR,'seeing_distribution.npy'),seed=p.seed)
 
     for ind in index:
       # Draw a galaxy using GalSim, any kind of operation can be done here
       gal = catalog.makeGalaxy(ind, noise_pad_size=p.img_len * p.pixel_scale*2)
 
-      # shear the PSF
-      np.random.seed(seed=p.seed)
-
+      # Shear the PSF
+    
       psf = galsim.InterpolatedKImage(galsim.ImageCD(fits.getdata(os.path.join(_COSMOS_DATA_DIR,'hst_cosmos_effective_psf.fits'))+0j, scale=2.*np.pi/(0.03*128)))
 
       # Apply random rotation if requested
@@ -559,4 +599,5 @@ class Attrs2imgCosmosCfht2hst(Img2imgCosmos):
       yield galsim_utils.draw_and_encode_stamp(gal, psf,
                                                stamp_size=p.img_len,
                                                pixel_scale=p.pixel_scale,
-                                               attributes=attributes)
+                                               attributes=attributes,
+                                               fwhm_sampler=fwhm_sampler)
