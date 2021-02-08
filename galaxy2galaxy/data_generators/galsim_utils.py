@@ -322,6 +322,113 @@ def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None, fw
 
     return serialized_output
 
+def draw_and_encode_parametric_stamp(gal, psf, stamp_size, pixel_scale, attributes=None, fwhm_sampler=None, flux_scaling=1.):
+    """
+    Draws the galaxy, psf and noise power spectrum on a postage stamp and
+    encodes it to be exported in a TFRecord.
+    """
+
+    # Apply the PSF
+    
+    psf_hst = psf
+    gal_hst = galsim.Convolve(gal, psf_hst)
+    
+    # Generate a CFHT-like PSF
+    fwhm_cfht = fwhm_sampler.get(1)[0]
+    psf = galsim.Kolmogorov(fwhm=fwhm_cfht,flux=1.0)#, scale_unit=galsim.arcsec) ommit units and let be handled withinin wcs
+    
+    g_sigma = 0.01 # standard deviation of the shear distribution
+    def get_g(n_g):
+        g = np.random.normal(0., g_sigma, n_g)
+        while np.linalg.norm(g) > 1:
+            g = np.random.normal(0., g_sigma, n_g)
+        return g
+
+    e1, e2 = get_g(2) #+[cst1, cst2] because the mean of the PSF ellipticity can be different from zero
+    psf_cfht = psf.shear(g1=e1, g2=e2)
+    gal_cfht = gal * flux_scaling
+    gal_cfht = galsim.Convolve(gal_cfht, psf_cfht)
+
+    # Draw a kimage of the galaxy, just to figure out what mask is, there might
+    # be more efficient ways to do this though...
+    bounds = _BoundsI(0, stamp_size//2, -stamp_size//2, stamp_size//2-1)
+    imG_cfht = gal_cfht.drawKImage(bounds=bounds,
+                         scale=2.*np.pi/(stamp_size * pixel_scale),
+                         recenter=False)
+    mask_cfht = ~(np.fft.fftshift(imG_cfht.array, axes=0) == 0)
+
+    # We draw the pixel image of the convolved image
+    im_cfht = gal_cfht.drawImage(nx=stamp_size, ny=stamp_size, scale=pixel_scale,
+                       method='no_pixel', use_true_center=False).array.astype('float32')
+    # Draw the Fourier domain image of the galaxy, using x1 zero padding,
+    # and x2 subsampling
+    interp_factor=2
+    padding_factor=1
+    Nk = stamp_size*interp_factor*padding_factor
+    bounds = _BoundsI(0, Nk//2, -Nk//2, Nk//2-1)
+    imCp_cfht = psf.drawKImage(bounds=bounds,
+                         scale=2.*np.pi/(Nk * pixel_scale / interp_factor),
+                         recenter=False)
+
+    # Transform the psf array into proper format, remove the phase
+    im_psf_cfht = np.abs(np.fft.fftshift(imCp_cfht.array, axes=0)).astype('float32')
+    
+    # Generate an empty noise power spectrum
+    
+    ps_cfht = np.zeros((stamp_size, stamp_size//2+1), dtype='float32')
+    
+    
+    # Draw a kimage of the galaxy, just to figure out what mask is, there might
+    # be more efficient ways to do this though...
+    bounds = _BoundsI(0, stamp_size//2, -stamp_size//2, stamp_size//2-1)
+    imG_hst = gal_hst.drawKImage(bounds=bounds,
+                         scale=2.*np.pi/(stamp_size * pixel_scale),
+                         recenter=False)
+    mask_hst = ~(np.fft.fftshift(imG_hst.array, axes=0) == 0)
+
+    # We draw the pixel image of the convolved image
+    im_hst = gal_hst.drawImage(nx=stamp_size, ny=stamp_size, scale=pixel_scale,
+                       method='no_pixel', use_true_center=False).array.astype('float32')
+
+    # Draw the Fourier domain image of the galaxy, using x1 zero padding,
+    # and x2 subsampling
+    bounds = _BoundsI(0, Nk//2, -Nk//2, Nk//2-1)
+    imCp_hst = psf_hst.drawKImage(bounds=bounds,
+                         scale=2.*np.pi/(Nk * pixel_scale / interp_factor),
+                         recenter=False)
+
+    # Transform the psf array into proper format, remove the phase
+    im_psf_hst = np.abs(np.fft.fftshift(imCp_hst.array, axes=0)).astype('float32')
+    
+    # Generate an empty noise power spectrum
+    
+    ps_hst = np.zeros((stamp_size, stamp_size//2+1), dtype='float32')
+
+    
+    
+    serialized_output = {"image_cfht/encoded": [im_cfht.tostring()],
+            "image_cfht/format": ["raw"],
+            "psf_cfht/encoded": [im_psf_cfht.tostring()],
+            "psf_cfht/format": ["raw"],
+            "ps_cfht/encoded": [ps_cfht.tostring()],
+            "ps_cfht/format": ["raw"],
+            "image_hst/encoded" : [im_hst.tostring()],
+            "image_hst/format" : ["raw"],
+            "psf_hst/encoded" : [im_psf_hst.tostring()],
+            "psf_hst/format" : ["raw"],
+            "ps_hst/encoded" : [ps_hst.tostring()],
+            "ps_hst/format" : ["raw"]}
+    
+    
+    
+
+    # Adding the parameters provided
+    if attributes is not None:
+        for k in attributes:
+            serialized_output['attrs/'+k] = [attributes[k]]
+
+    return serialized_output
+
 def maybe_download_cosmos(target_dir, sample="25.2"):
     """
     Checks for already accessible cosmos data, downloads it somewhere otherwise
