@@ -175,7 +175,7 @@ def _float_feature(value):
 def _bytes_feature(value):
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
-def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None, fwhm_sampler=None):
+def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None, fwhm_sampler=None, flux_scaling=1.):
     """
     Draws the galaxy, psf and noise power spectrum on a postage stamp and
     encodes it to be exported in a TFRecord.
@@ -199,8 +199,8 @@ def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None, fw
 
     e1, e2 = get_g(2) #+[cst1, cst2] because the mean of the PSF ellipticity can be different from zero
     psf_cfht = psf.shear(g1=e1, g2=e2)
-    
-    gal_cfht = galsim.Convolve(gal, psf_cfht)
+    gal_cfht = gal * flux_scaling
+    gal_cfht = galsim.Convolve(gal_cfht, psf_cfht)
 
     # Draw a kimage of the galaxy, just to figure out what mask is, there might
     # be more efficient ways to do this though...
@@ -213,7 +213,6 @@ def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None, fw
     # We draw the pixel image of the convolved image
     im_cfht = gal_cfht.drawImage(nx=stamp_size, ny=stamp_size, scale=pixel_scale,
                        method='no_pixel', use_true_center=False).array.astype('float32')
-
     # Draw the Fourier domain image of the galaxy, using x1 zero padding,
     # and x2 subsampling
     interp_factor=2

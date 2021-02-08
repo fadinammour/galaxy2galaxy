@@ -486,7 +486,7 @@ class Attrs2imgCosmosCfht2hst(Img2imgCosmos):
     """
     return [{
         "split": problem.DatasetSplit.TRAIN,
-        "shards": 80,
+        "shards": 54,
     }, {
         "split": problem.DatasetSplit.EVAL,
         "shards": 2,
@@ -538,7 +538,7 @@ class Attrs2imgCosmosCfht2hst(Img2imgCosmos):
         catalog = galsim.COSMOSCatalog()
     except:
         # If that fails, tries to use the specified tmp_dir
-        catalog = galsim.COSMOSCatalog(dir=tmp_dir+'/COSMOS_25.2_training_sample')
+        catalog = galsim.COSMOSCatalog(dir=tmp_dir+'COSMOS_23.5_training_sample',sample='23.5')
 
     # Create a list of galaxy indices for this task, remember, there is a task
     # per shard, each shard is 1000 galaxies.
@@ -570,8 +570,20 @@ class Attrs2imgCosmosCfht2hst(Img2imgCosmos):
     cat_param = append_fields(cat_param, 'sersic_n', sparams[:,2])
     cat_param = append_fields(cat_param, 'sersic_beta', sparams[:,7])
     
+    # Setting seeds for random number generators
     np.random.seed(seed=p.seed)
     fwhm_sampler = seeing_distribution(os.path.join(_COSMOS_DATA_DIR,'seeing_distribution.npy'),seed=p.seed)
+    
+    # Compute flux scaling factor to go from HST to CFHT
+    # The values below were taken from the following two links
+    # https://www.cfht.hawaii.edu/Instruments/Imaging/Megacam/generalinformation.html
+    # https://github.com/LSSTDESC/WeakLensingDeblending/blob/9f851f79f6f820f815528d11acabf64083b6e111/descwl/survey.py#L288
+    cfht_eff_area = 8.022 #m^2 #effective area
+    hst_eff_area = 2.4**2 * (1.-0.33**2)
+    exp_time = 200 #seconds # exposure time #value corresponding to CFIS # provided by A. Guinot
+    qe = 0.77 # Quantum Efficiency (converts photon number to electrons)
+    gain = 1.62 #e-/ADU #converts electrons to ADU
+    flux_scaling = (cfht_eff_area/hst_eff_area) * exp_time * qe / gain
 
     for ind in index:
       # Draw a galaxy using GalSim, any kind of operation can be done here
@@ -600,4 +612,5 @@ class Attrs2imgCosmosCfht2hst(Img2imgCosmos):
                                                stamp_size=p.img_len,
                                                pixel_scale=p.pixel_scale,
                                                attributes=attributes,
-                                               fwhm_sampler=fwhm_sampler)
+                                               fwhm_sampler=fwhm_sampler,
+                                               flux_scaling=flux_scaling)
