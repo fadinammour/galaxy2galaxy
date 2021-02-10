@@ -627,10 +627,10 @@ class Attrs2imgCosmosParametricCfht2hst(Img2imgCosmos):
     """
     return [{
         "split": problem.DatasetSplit.TRAIN,
-        "shards": 1,#49,
+        "shards": 49,
     }, {
         "split": problem.DatasetSplit.EVAL,
-        "shards": 1,#2,
+        "shards": 2,
     }]
 
   def hparams(self, defaults, model_hparams):
