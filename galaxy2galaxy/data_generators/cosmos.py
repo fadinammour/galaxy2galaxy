@@ -486,7 +486,7 @@ class Attrs2imgCosmosCfht2hst(Img2imgCosmos):
     """
     return [{
         "split": problem.DatasetSplit.TRAIN,
-        "shards": 54,
+        "shards": 49,
     }, {
         "split": problem.DatasetSplit.EVAL,
         "shards": 2,
@@ -627,10 +627,10 @@ class Attrs2imgCosmosParametricCfht2hst(Img2imgCosmos):
     """
     return [{
         "split": problem.DatasetSplit.TRAIN,
-        "shards": 54,
+        "shards": 1,#49,
     }, {
         "split": problem.DatasetSplit.EVAL,
-        "shards": 2,
+        "shards": 1,#2,
     }]
 
   def hparams(self, defaults, model_hparams):
@@ -725,10 +725,13 @@ class Attrs2imgCosmosParametricCfht2hst(Img2imgCosmos):
     qe = 0.77 # Quantum Efficiency (converts photon number to electrons)
     gain = 1.62 #e-/ADU #converts electrons to ADU
     flux_scaling = (cfht_eff_area/hst_eff_area) * exp_time * qe / gain
+    
+    # allow the fft operation in galsim to occupy more memory
+    gsp = galsim.GSParams(maximum_fft_size=10000)
 
     for ind in index:
       # Draw a galaxy using GalSim, any kind of operation can be done here
-      gal = catalog.makeGalaxy(ind, noise_pad_size=p.img_len * p.pixel_scale*2)
+      gal = catalog.makeGalaxy(ind, noise_pad_size=p.img_len * p.pixel_scale*2, gsparams=gsp)
 
       # Shear the PSF
     
