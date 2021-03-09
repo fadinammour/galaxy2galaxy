@@ -588,6 +588,8 @@ class Attrs2imgCosmosCfht2hst(Img2imgCosmos):
     for ind in index:
       # Draw a galaxy using GalSim, any kind of operation can be done here
       gal = catalog.makeGalaxy(ind, noise_pad_size=p.img_len * p.pixel_scale*2)
+      # Scale galaxy flux
+      gal = gal * flux_scaling
 
       # Shear the PSF
     
@@ -612,8 +614,7 @@ class Attrs2imgCosmosCfht2hst(Img2imgCosmos):
                                                stamp_size=p.img_len,
                                                pixel_scale=p.pixel_scale,
                                                attributes=attributes,
-                                               fwhm_sampler=fwhm_sampler,
-                                               flux_scaling=flux_scaling)
+                                               fwhm_sampler=fwhm_sampler)
 
 @registry.register_problem
 class Attrs2imgCosmosParametricCfht2hst(Img2imgCosmos):
@@ -732,6 +733,8 @@ class Attrs2imgCosmosParametricCfht2hst(Img2imgCosmos):
     for ind in index:
       # Draw a galaxy using GalSim, any kind of operation can be done here
       gal = catalog.makeGalaxy(ind, noise_pad_size=p.img_len * p.pixel_scale*2, gsparams=gsp)
+      # Scale galaxy flux
+      gal = gal * flux_scaling
 
       # Shear the PSF
     
@@ -756,5 +759,4 @@ class Attrs2imgCosmosParametricCfht2hst(Img2imgCosmos):
                                                stamp_size=p.img_len,
                                                pixel_scale=p.pixel_scale,
                                                attributes=attributes,
-                                               fwhm_sampler=fwhm_sampler,
-                                               flux_scaling=flux_scaling)
+                                               fwhm_sampler=fwhm_sampler)

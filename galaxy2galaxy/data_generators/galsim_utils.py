@@ -175,7 +175,7 @@ def _float_feature(value):
 def _bytes_feature(value):
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
-def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None, fwhm_sampler=None, flux_scaling=1.):
+def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None, fwhm_sampler=None):
     """
     Draws the galaxy, psf and noise power spectrum on a postage stamp and
     encodes it to be exported in a TFRecord.
@@ -199,8 +199,7 @@ def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None, fw
 
     e1, e2 = get_g(2) #+[cst1, cst2] because the mean of the PSF ellipticity can be different from zero
     psf_cfht = psf.shear(g1=e1, g2=e2)
-    gal_cfht = gal * flux_scaling
-    gal_cfht = galsim.Convolve(gal_cfht, psf_cfht)
+    gal_cfht = galsim.Convolve(gal, psf_cfht)
 
     # Draw a kimage of the galaxy, just to figure out what mask is, there might
     # be more efficient ways to do this though...
@@ -322,7 +321,7 @@ def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None, fw
 
     return serialized_output
 
-def draw_and_encode_parametric_stamp(gal, psf, stamp_size, pixel_scale, attributes=None, fwhm_sampler=None, flux_scaling=1.):
+def draw_and_encode_parametric_stamp(gal, psf, stamp_size, pixel_scale, attributes=None, fwhm_sampler=None):
     """
     Draws the galaxy, psf and noise power spectrum on a postage stamp and
     encodes it to be exported in a TFRecord.
@@ -346,8 +345,7 @@ def draw_and_encode_parametric_stamp(gal, psf, stamp_size, pixel_scale, attribut
 
     e1, e2 = get_g(2) #+[cst1, cst2] because the mean of the PSF ellipticity can be different from zero
     psf_cfht = psf.shear(g1=e1, g2=e2)
-    gal_cfht = gal * flux_scaling
-    gal_cfht = galsim.Convolve(gal_cfht, psf_cfht)
+    gal_cfht = galsim.Convolve(gal, psf_cfht)
 
     # Draw a kimage of the galaxy, just to figure out what mask is, there might
     # be more efficient ways to do this though...
