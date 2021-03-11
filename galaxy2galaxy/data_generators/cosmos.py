@@ -591,9 +591,12 @@ class Attrs2imgCosmosCfht2hst(Img2imgCosmos):
       # Scale galaxy flux
       gal = gal * flux_scaling
 
-      # Shear the PSF
+      # Load the COSMOS isotropic PSF to be used for the inputs
     
       psf = galsim.InterpolatedKImage(galsim.ImageCD(fits.getdata(os.path.join(_COSMOS_DATA_DIR,'hst_cosmos_effective_psf.fits'))+0j, scale=2.*np.pi/(0.03*128)))
+        
+      # Normalize the PSF
+      psf = psf.withFlux(1.0)
 
       # Apply random rotation if requested
       if hasattr(p, "rotation") and p.rotation:
@@ -736,9 +739,12 @@ class Attrs2imgCosmosParametricCfht2hst(Img2imgCosmos):
       # Scale galaxy flux
       gal = gal * flux_scaling
 
-      # Shear the PSF
+      # Load the COSMOS isotropic PSF to be used for the inputs
     
       psf = galsim.InterpolatedKImage(galsim.ImageCD(fits.getdata(os.path.join(_COSMOS_DATA_DIR,'hst_cosmos_effective_psf.fits'))+0j, scale=2.*np.pi/(0.03*128)))
+        
+      # Normalize the PSF
+      psf = psf.withFlux(1.0)
 
       # Apply random rotation if requested
       if hasattr(p, "rotation") and p.rotation:
