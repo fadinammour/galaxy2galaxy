@@ -794,12 +794,9 @@ class meerkat(Img2imgCosmos):
     p.seed = 1995
     p.example_per_shard = 1000
    
-    p.modality = {"targets": modalities.ModalityType.IDENTITY} #{"inputs": modalities.ModalityType.IDENTITY,
-                                                                #"targets": modalities.ModalityType.IDENTITY}
-    p.vocab_size = {"targets": None} #{"inputs": None,
-                                     #"targets": None}
-    p.add_hparam("psf_cfht", None)
-    #p.add_hparam("psf_hst", None)
+    p.modality = {"targets": modalities.ModalityType.IDENTITY} 
+    p.vocab_size = {"targets": None} 
+    p.add_hparam("psf", None)
     p.add_hparam("rotation", False)
     p.attributes = ['mag_auto', 'flux_radius']
   """ Conditional image generation problem based on COSMOS sample.
@@ -810,7 +807,6 @@ class meerkat(Img2imgCosmos):
     image standardization.
     """
     p = self.get_hparams()
-    #image_cfht = example["inputs"]
     image_hst = example["targets"]
 
     # Clip to 1 the values of the image
@@ -820,7 +816,6 @@ class meerkat(Img2imgCosmos):
     if hasattr(p, 'attributes'):
       example['attributes'] = tf.stack([example[k] for k in p.attributes])
 
-    #example["inputs"] = image_cfht
     example["targets"] = image_hst
     return example
 

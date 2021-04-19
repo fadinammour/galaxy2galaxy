@@ -76,9 +76,6 @@ class GalsimProblem(astroimage_utils.AstroImageProblem):
         "psf_cfht/encoded": tf.FixedLenFeature((), tf.string),
         "psf_cfht/format": tf.FixedLenFeature((), tf.string),
 
-        "ps_cfht/encoded": tf.FixedLenFeature((), tf.string),
-        "ps_cfht/format": tf.FixedLenFeature((), tf.string),
-        
         "image_hst/encoded" : tf.FixedLenFeature((), tf.string),
         "image_hst/format" : tf.FixedLenFeature((), tf.string),
         
@@ -93,7 +90,7 @@ class GalsimProblem(astroimage_utils.AstroImageProblem):
 
     data_items_to_decoders = {
         
-        "psf_cfht": tf.contrib.slim.tfexample_decoder.Image(
+        "psf": tf.contrib.slim.tfexample_decoder.Image(
                 image_key="psf_cfht/encoded",
                 format_key="psf_cfht/format",
                 channels=self.num_bands,
@@ -101,13 +98,6 @@ class GalsimProblem(astroimage_utils.AstroImageProblem):
                 shape=[2*p.img_len, 2*p.img_len // 2 + 1, self.num_bands],
                 dtype=tf.float32),
 
-        "ps_cfht": tf.contrib.slim.tfexample_decoder.Image(
-                image_key="ps_cfht/encoded",
-                format_key="ps_cfht/format",
-                channels=self.num_bands,
-                shape=[p.img_len, p.img_len // 2 + 1],
-                dtype=tf.float32),
-        
         "targets": tf.contrib.slim.tfexample_decoder.Image(
                 image_key="image_hst/encoded",
                 format_key="image_hst/format",
@@ -233,8 +223,6 @@ def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None, fw
     
     serialized_output = {"psf_cfht/encoded": [im_psf_cfht.tostring()],
                          "psf_cfht/format": ["raw"],
-                         "ps_cfht/encoded": [ps_cfht.tostring()],
-                         "ps_cfht/format": ["raw"],
                          "image_hst/encoded" : [im_hst.tostring()],
                          "image_hst/format" : ["raw"],
                          }
