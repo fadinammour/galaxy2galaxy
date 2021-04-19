@@ -796,7 +796,7 @@ class meerkat(Img2imgCosmos):
    
     p.modality = {"targets": modalities.ModalityType.IDENTITY} 
     p.vocab_size = {"targets": None} 
-    p.add_hparam("psf", None)
+    p.add_hparam("psf_cfht", None)
     p.add_hparam("rotation", False)
     p.attributes = ['mag_auto', 'flux_radius']
   """ Conditional image generation problem based on COSMOS sample.
