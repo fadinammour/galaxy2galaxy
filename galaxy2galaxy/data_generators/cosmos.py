@@ -924,7 +924,7 @@ class meerkat(Img2imgCosmos):
         attributes = None
 
       # Utility function encodes the postage stamp for serialized features
-      yield galsim_utils.draw_and_encode_parametric_stamp(gal, psf,
+      yield galsim_utils.draw_and_encode_stamp(gal, psf,
                                                stamp_size=p.img_len,
                                                pixel_scale=p.pixel_scale,
                                                attributes=attributes,
