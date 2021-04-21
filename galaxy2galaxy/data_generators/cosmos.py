@@ -23,6 +23,30 @@ import numpy as np
 import tensorflow as tf
 import galsim
 
+from astropy.io import ascii
+from astropy.io import fits
+import matplotlib.pyplot as plt
+from numpy.fft import rfft,fft,fftshift,rfft2,irfft2
+from scipy import random
+from . import MakePSF
+
+import astropy.units as u
+from astropy.time import Time, TimeDelta
+
+from astropy.coordinates import (
+    EarthLocation,
+    Angle,
+    AltAz,
+    ICRS,
+    Longitude,
+    FK5,
+    SkyCoord
+)
+from astropy.constants import c as lspeed
+
+
+
+
 # Path to data files required for cosmos
 _COSMOS_DATA_DIR=os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
@@ -639,7 +663,7 @@ class Attrs2imgCosmosParametricCfht2hst(Img2imgCosmos):
 
   def hparams(self, defaults, model_hparams):
     p = defaults
-    p.pixel_scale = 0.187
+    p.pixel_scale = 1.5  
     p.img_len = 64
     p.seed = 1995
     p.example_per_shard = 1000
@@ -789,7 +813,7 @@ class meerkat(Img2imgCosmos):
 
   def hparams(self, defaults, model_hparams):
     p = defaults
-    p.pixel_scale = 0.187
+    p.pixel_scale = 1.5  
     p.img_len = 64
     p.seed = 1995
     p.example_per_shard = 1000
@@ -891,6 +915,8 @@ class meerkat(Img2imgCosmos):
     # allow the fft operation in galsim to occupy more memory
     gsp = galsim.GSParams(maximum_fft_size=10000)
 
+    
+        
     for ind in index:
       # Draw a galaxy using GalSim, any kind of operation can be done here
       gal = catalog.makeGalaxy(ind, noise_pad_size=p.img_len * p.pixel_scale*2, gsparams=gsp)
@@ -898,8 +924,18 @@ class meerkat(Img2imgCosmos):
       gal = gal * flux_scaling
 
       # Load the COSMOS isotropic PSF to be used for the inputs
+      """
+      psf = galsim.InterpolatedKImage(galsim.ImageCD(fits.getdata(os.path.join(_COSMOS_DATA_DIR,'hst_cosmos_effective_psf.fits'))+0j, scale=2.*np.pi/(0.03*128)))"""
+      
+      PSF, sampling, tabDEC, tabHAstart = MakePSF.compute(1, p.img_len, p.pixel_scale, Obslength=2., Timedelta=300, Elevmin=0., F=1420)
+        
+      
+      #mask = sampling[0] + np.conj(sampling[0]).T   # Make Hermitian
     
-      psf = galsim.InterpolatedKImage(galsim.ImageCD(fits.getdata(os.path.join(_COSMOS_DATA_DIR,'hst_cosmos_effective_psf.fits'))+0j, scale=2.*np.pi/(0.03*128)))
+      #psf = galsim.InterpolatedKImage(galsim.ImageCD(mask, scale = 2.*np.pi / (p.pixel_scale * p.img_len)))
+      
+      psf = galsim.InterpolatedImage(galsim.ImageD(np.real(PSF[0]), scale = p.pixel_scale))
+        
         
       # Normalize the PSF
       psf = psf.withFlux(1.0)

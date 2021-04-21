@@ -20,6 +20,28 @@ import galsim
 import argparse
 from galsim.bounds import _BoundsI
 
+from astropy.io import ascii
+from astropy.io import fits
+import matplotlib.pyplot as plt
+from numpy.fft import rfft,fft,fftshift,rfft2,irfft2
+from scipy import random
+from . import MakePSF
+
+import astropy.units as u
+from astropy.time import Time, TimeDelta
+
+from astropy.coordinates import (
+    EarthLocation,
+    Angle,
+    AltAz,
+    ICRS,
+    Longitude,
+    FK5,
+    SkyCoord
+)
+from astropy.constants import c as lspeed
+
+
 class GalsimProblem(astroimage_utils.AstroImageProblem):
   """Base class for image problems generated with GalSim.
 
@@ -182,8 +204,8 @@ def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None, fw
     Nk = stamp_size*interp_factor*padding_factor
     bounds = _BoundsI(0, Nk//2, -Nk//2, Nk//2-1)
     imCp_cfht = psf.drawKImage(bounds=bounds,
-                         scale=2.*np.pi/(Nk * pixel_scale / interp_factor),
-                         recenter=False)
+                             scale=2.*np.pi/(Nk * pixel_scale / interp_factor),
+                             recenter=False)
 
     # Transform the psf array into proper format, remove the phase
     im_psf_cfht = np.abs(np.fft.fftshift(imCp_cfht.array, axes=0)).astype('float32')
