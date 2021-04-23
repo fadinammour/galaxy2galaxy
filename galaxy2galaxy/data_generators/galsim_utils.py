@@ -52,8 +52,8 @@ class GalsimProblem(astroimage_utils.AstroImageProblem):
   # START: Subclass interface
   def hparams(self, defaults, model_hparams):
     p = defaults
-    p.pixel_scale = 0.187
-    p.img_len = 64
+    p.pixel_scale = 1.5
+    p.img_len = 128
 
   @property
   def num_bands(self):
@@ -160,43 +160,36 @@ def _bytes_feature(value):
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
 
-def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None, fwhm_sampler=None):
+def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None):
     """
     Draws the galaxy, psf and noise power spectrum on a postage stamp and
     encodes it to be exported in a TFRecord.
     """
-
+    
     # Apply the PSF
     
-    psf_hst = psf
-    gal_hst = galsim.Convolve(gal, psf_hst)
+    #psf_hst = psf
+    #gal_hst = galsim.Convolve(gal, psf_hst)
     
-    # Generate a CFHT-like PSF
-    fwhm_cfht = fwhm_sampler.get(1)[0]
-    psf = galsim.Kolmogorov(fwhm=fwhm_cfht,flux=1.0)#, scale_unit=galsim.arcsec) ommit units and let be handled withinin wcs
+    gal_hst = gal
+    psf_cfht = psf
     
-    g_sigma = 0.01 # standard deviation of the shear distribution
-    def get_g(n_g):
-        g = np.random.normal(0., g_sigma, n_g)
-        while np.linalg.norm(g) > 1:
-            g = np.random.normal(0., g_sigma, n_g)
-        return g
+    #gal_cfht = galsim.Convolve(gal, psf_cfht)
 
-    e1, e2 = get_g(2) #+[cst1, cst2] because the mean of the PSF ellipticity can be different from zero
-    psf_cfht = psf.shear(g1=e1, g2=e2)
-    gal_cfht = galsim.Convolve(gal, psf_cfht)
+    
+#     # Draw a kimage of the galaxy, just to figure out what mask is, there might
+#     # be more efficient ways to do this though...
+#     bounds = _BoundsI(0, stamp_size//2, -stamp_size//2, stamp_size//2-1)
+#     imG_cfht = gal_cfht.drawKImage(bounds=bounds,
+#                                  scale=2.*np.pi/(stamp_size * pixel_scale),
+#                                  recenter=False)
+#     mask_cfht = ~(np.fft.fftshift(imG_cfht.array, axes=0) == 0)
 
-    # Draw a kimage of the galaxy, just to figure out what mask is, there might
-    # be more efficient ways to do this though...
-    bounds = _BoundsI(0, stamp_size//2, -stamp_size//2, stamp_size//2-1)
-    imG_cfht = gal_cfht.drawKImage(bounds=bounds,
-                         scale=2.*np.pi/(stamp_size * pixel_scale),
-                         recenter=False)
-    mask_cfht = ~(np.fft.fftshift(imG_cfht.array, axes=0) == 0)
-
-    # We draw the pixel image of the convolved image
-    im_cfht = gal_cfht.drawImage(nx=stamp_size, ny=stamp_size, scale=pixel_scale,
-                       method='no_pixel', use_true_center=False).array.astype('float32')
+#     # We draw the pixel image of the convolved image
+#     im_cfht = gal_cfht.drawImage(nx=stamp_size, ny=stamp_size, scale=pixel_scale,
+#                        method='no_pixel', use_true_center=False).array.astype('float32')
+                       
+      
     # Draw the Fourier domain image of the galaxy, using x1 zero padding,
     # and x2 subsampling
     interp_factor=2
@@ -210,9 +203,11 @@ def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None, fw
     # Transform the psf array into proper format, remove the phase
     im_psf_cfht = np.abs(np.fft.fftshift(imCp_cfht.array, axes=0)).astype('float32')
     
-    # Generate an empty noise power spectrum
     
-    ps_cfht = np.zeros((stamp_size, stamp_size//2+1), dtype='float32')
+#     # Generate an empty noise power spectrum
+    
+#     ps_cfht = np.zeros((stamp_size, stamp_size//2+1), dtype='float32')
+   
     
     
     # Draw a kimage of the galaxy, just to figure out what mask is, there might
@@ -227,19 +222,20 @@ def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None, fw
     im_hst = gal_hst.drawImage(nx=stamp_size, ny=stamp_size, scale=pixel_scale,
                        method='no_pixel', use_true_center=False).array.astype('float32')
 
-    # Draw the Fourier domain image of the galaxy, using x1 zero padding,
-    # and x2 subsampling
-    bounds = _BoundsI(0, Nk//2, -Nk//2, Nk//2-1)
-    imCp_hst = psf_hst.drawKImage(bounds=bounds,
-                         scale=2.*np.pi/(Nk * pixel_scale / interp_factor),
-                         recenter=False)
 
-    # Transform the psf array into proper format, remove the phase
-    im_psf_hst = np.abs(np.fft.fftshift(imCp_hst.array, axes=0)).astype('float32')
+#     # Draw the Fourier domain image of the galaxy, using x1 zero padding,
+#     # and x2 subsampling
+#     bounds = _BoundsI(0, Nk//2, -Nk//2, Nk//2-1)
+#     imCp_hst = psf_hst.drawKImage(bounds=bounds,
+#                          scale=2.*np.pi/(Nk * pixel_scale / interp_factor),
+#                          recenter=False)
+
+#     # Transform the psf array into proper format, remove the phase
+#     im_psf_hst = np.abs(np.fft.fftshift(imCp_hst.array, axes=0)).astype('float32')
     
-    # Generate an empty noise power spectrum
+#     # Generate an empty noise power spectrum
     
-    ps_hst = np.zeros((stamp_size, stamp_size//2+1), dtype='float32')
+#     ps_hst = np.zeros((stamp_size, stamp_size//2+1), dtype='float32')
 
     
     

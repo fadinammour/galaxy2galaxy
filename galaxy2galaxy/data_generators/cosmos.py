@@ -683,8 +683,8 @@ class Attrs2imgCosmosParametricCfht2hst(Img2imgCosmos):
     image standardization.
     """
     p = self.get_hparams()
-    image_cfht = example["inputs"]
-    image_hst = example["targets"]
+    #image_cfht = example["inputs"]
+    #image_hst = example["targets"]
 
     # Clip to 1 the values of the image
     # image = tf.clip_by_value(image, -1, 1)
@@ -693,8 +693,8 @@ class Attrs2imgCosmosParametricCfht2hst(Img2imgCosmos):
     if hasattr(p, 'attributes'):
       example['attributes'] = tf.stack([example[k] for k in p.attributes])
 
-    example["inputs"] = image_cfht
-    example["targets"] = image_hst
+    #example["inputs"] = image_cfht
+    #example["targets"] = image_hst
     return example
 
   def generator(self, data_dir, tmp_dir, dataset_split, task_id=-1):
@@ -786,10 +786,10 @@ class Attrs2imgCosmosParametricCfht2hst(Img2imgCosmos):
 
       # Utility function encodes the postage stamp for serialized features
       yield galsim_utils.draw_and_encode_parametric_stamp(gal, psf,
-                                               stamp_size=p.img_len,
-                                               pixel_scale=p.pixel_scale,
-                                               attributes=attributes,
-                                               fwhm_sampler=fwhm_sampler)
+                                                       stamp_size=p.img_len,
+                                                       pixel_scale=p.pixel_scale,
+                                                       attributes=attributes,
+                                                       fwhm_sampler=fwhm_sampler)
 
 
 
@@ -805,7 +805,7 @@ class meerkat(Img2imgCosmos):
     """
     return [{
         "split": problem.DatasetSplit.TRAIN,
-        "shards": 1, #49,
+        "shards": 1, #29,
     }, {
         "split": problem.DatasetSplit.EVAL,
         "shards": 1, #2,
@@ -814,9 +814,9 @@ class meerkat(Img2imgCosmos):
   def hparams(self, defaults, model_hparams):
     p = defaults
     p.pixel_scale = 1.5  
-    p.img_len = 64
+    p.img_len = 128
     p.seed = 1995
-    p.example_per_shard = 1000
+    p.example_per_shard = 10  #1000
    
     p.modality = {"targets": modalities.ModalityType.IDENTITY} 
     p.vocab_size = {"targets": None} 
@@ -848,98 +848,116 @@ class meerkat(Img2imgCosmos):
     Generates and yields postage stamps obtained with GalSim.
     """
     p = self.get_hparams()
-    """
-    try:
-        # try to use default galsim path to the data
-        catalog = galsim.COSMOSCatalog(use_real=False)
-    except:
-        # If that fails, tries to use the specified tmp_dir
-        catalog = galsim.COSMOSCatalog(dir=tmp_dir+'catalogue_SFGs_complete_wide1.fits', use_real=False)
     
-   """
+    
+    # Simulating Star Forming Galaxy at 1400 MHz
+    
+    catalog = fits.open(tmp_dir+'catalogue_SFGs_complete_wide1.fits')       
+    
+    
+    # Retrieve angular size, and ellipticities
+    
+    cat1 = catalog[1]                 # Selecting the first slice of the Fits ("Catalogue")
+    cat_data = cat1.data              # Extract data from slice
+    flux1400_sfg = cat_data['I1400']  # Flux density at 1400 MHz (in Janskys)
 
-    try:
-        # try to use default galsim path to the data
-        catalog = galsim.COSMOSCatalog(sample='23.5', use_real=False)
-    except:
-        # If that fails, tries to use the specified tmp_dir
-        catalog = galsim.COSMOSCatalog(dir=tmp_dir+'COSMOS_23.5_training_sample',sample='23.5', use_real=False)
+    size_sfg = cat_data['size']       # angular size on the sky (in arcsec)
+    e1 = cat_data['e1']               # first ellipticity
+    e2 = cat_data['e2']               # second ellipticity
+    
+    
+    # Filtering objects that are larger than 10 pixels and smaller than 70 pixels on the sky
+    # typical values for the array and frequency
+    
+    min_pix_size = 10 #3
+    max_pix_size = 70
+
+    filter_obj = np.logical_and(size_sfg > min_pix_size * p.pixel_scale, size_sfg < max_pix_size * p.pixel_scale)
+    list_index_obj = np.where(filter_obj == True)[0]  # list of indices where condition is true
+    Ntot_obj = len(list_index_obj)                    # number of objects fitting the condition
+    
+    flux1400_sfg = flux1400_sfg[filter_obj]  
+    size_sfg = size_sfg[filter_obj]      
+    e1 = e1[filter_obj]              
+    e2 = e2[filter_obj]   
+    
+ 
         
-        
-        
-    # Create a list of galaxy indices for this task, remember, there is a task
-    # per shard, each shard is 1000 galaxies.
+    # Create a list of galaxy indices for this task, remember, there is a task per shard, each shard is 1000 galaxies.
     assert(task_id > -1)
     index = range(task_id*p.example_per_shard,
-                  min((task_id+1)*p.example_per_shard, catalog.getNObjects()))
+                  min((task_id+1)*p.example_per_shard, Ntot_obj)) #catalog.getNObjects()))
 
+    
     # Extracts additional information about the galaxies
-    cat_param = catalog.param_cat[catalog.orig_index]
-    from numpy.lib.recfunctions import append_fields
-    import numpy as np
+    #cat_param = catalog.param_cat[catalog.orig_index]
+#     from numpy.lib.recfunctions import append_fields
+#     import numpy as np
 
-    bparams = cat_param['bulgefit']
-    sparams = cat_param['sersicfit']
-    # Parameters for a 2 component fit
-    cat_param = append_fields(cat_param, 'bulge_q', bparams[:,11])
-    cat_param = append_fields(cat_param, 'bulge_beta', bparams[:,15])
-    cat_param = append_fields(cat_param, 'disk_q', bparams[:,3])
-    cat_param = append_fields(cat_param, 'disk_beta', bparams[:,7])
-    cat_param = append_fields(cat_param, 'bulge_hlr', cat_param['hlr'][:,1])
-    cat_param = append_fields(cat_param, 'bulge_flux_log10', np.where(cat_param['use_bulgefit'] ==1, np.log10(cat_param['flux'][:,1]), np.zeros(len(cat_param) )))
-    cat_param = append_fields(cat_param, 'disk_hlr', cat_param['hlr'][:,2])
-    cat_param = append_fields(cat_param, 'disk_flux_log10', np.where(cat_param['use_bulgefit'] ==1, np.log10(cat_param['flux'][:,2]), np.log10(cat_param['flux'][:,0])))
+#     bparams = cat_param['bulgefit']
+#     sparams = cat_param['sersicfit']
+#     # Parameters for a 2 component fit
+#     cat_param = append_fields(cat_param, 'bulge_q', bparams[:,11])
+#     cat_param = append_fields(cat_param, 'bulge_beta', bparams[:,15])
+#     cat_param = append_fields(cat_param, 'disk_q', bparams[:,3])
+#     cat_param = append_fields(cat_param, 'disk_beta', bparams[:,7])
+#     cat_param = append_fields(cat_param, 'bulge_hlr', cat_param['hlr'][:,1])
+#     cat_param = append_fields(cat_param, 'bulge_flux_log10', np.where(cat_param['use_bulgefit'] ==1, np.log10(cat_param['flux'][:,1]), np.zeros(len(cat_param) )))
+#     cat_param = append_fields(cat_param, 'disk_hlr', cat_param['hlr'][:,2])
+#     cat_param = append_fields(cat_param, 'disk_flux_log10', np.where(cat_param['use_bulgefit'] ==1, np.log10(cat_param['flux'][:,2]), np.log10(cat_param['flux'][:,0])))
 
-    # Parameters for a single component fit
-    cat_param = append_fields(cat_param, 'sersic_flux_log10', np.log10(sparams[:,0]))
-    cat_param = append_fields(cat_param, 'sersic_q', sparams[:,3])
-    cat_param = append_fields(cat_param, 'sersic_hlr', sparams[:,1])
-    cat_param = append_fields(cat_param, 'sersic_n', sparams[:,2])
-    cat_param = append_fields(cat_param, 'sersic_beta', sparams[:,7])
+#     # Parameters for a single component fit
+#     cat_param = append_fields(cat_param, 'sersic_flux_log10', np.log10(sparams[:,0]))
+#     cat_param = append_fields(cat_param, 'sersic_q', sparams[:,3])
+#     cat_param = append_fields(cat_param, 'sersic_hlr', sparams[:,1])
+#     cat_param = append_fields(cat_param, 'sersic_n', sparams[:,2])
+#     cat_param = append_fields(cat_param, 'sersic_beta', sparams[:,7])
     
-    # Setting seeds for random number generators
-    np.random.seed(seed=p.seed)
-    fwhm_sampler = seeing_distribution(os.path.join(_COSMOS_DATA_DIR,'seeing_distribution.npy'),seed=p.seed)
     
-    # Compute flux scaling factor to go from HST to CFHT
-    # The values below were taken from the following two links
-    # https://www.cfht.hawaii.edu/Instruments/Imaging/Megacam/generalinformation.html
-    # https://github.com/LSSTDESC/WeakLensingDeblending/blob/9f851f79f6f820f815528d11acabf64083b6e111/descwl/survey.py#L288
-    cfht_eff_area = 8.022 #m^2 #effective area
-    hst_eff_area = 2.4**2 * (1.-0.33**2)
-    exp_time = 200 #seconds # exposure time #value corresponding to CFIS # provided by A. Guinot
-    qe = 0.77 # Quantum Efficiency (converts photon number to electrons)
-    gain = 1.62 #e-/ADU #converts electrons to ADU
-    flux_scaling = (cfht_eff_area/hst_eff_area) * exp_time * qe / gain
+#     # Setting seeds for random number generators
+#     np.random.seed(seed=p.seed)
+#     fwhm_sampler = seeing_distribution(os.path.join(_COSMOS_DATA_DIR,'seeing_distribution.npy'),seed=p.seed)
+
+    
+#     # Compute flux scaling factor to go from HST to CFHT
+#     # The values below were taken from the following two links
+#     # https://www.cfht.hawaii.edu/Instruments/Imaging/Megacam/generalinformation.html
+#     # https://github.com/LSSTDESC/WeakLensingDeblending/blob/9f851f79f6f820f815528d11acabf64083b6e111/descwl/survey.py#L288
+#     cfht_eff_area = 8.022 #m^2 #effective area
+#     hst_eff_area = 2.4**2 * (1.-0.33**2)
+#     exp_time = 200 #seconds # exposure time #value corresponding to CFIS # provided by A. Guinot
+#     qe = 0.77 # Quantum Efficiency (converts photon number to electrons)
+#     gain = 1.62 #e-/ADU #converts electrons to ADU
+#     flux_scaling = (cfht_eff_area/hst_eff_area) * exp_time * qe / gain
+    
     
     # allow the fft operation in galsim to occupy more memory
-    gsp = galsim.GSParams(maximum_fft_size=10000)
-
+    gsp = galsim.GSParams(maximum_fft_size = 81488)  
     
         
     for ind in index:
-      # Draw a galaxy using GalSim, any kind of operation can be done here
-      gal = catalog.makeGalaxy(ind, noise_pad_size=p.img_len * p.pixel_scale*2, gsparams=gsp)
-      # Scale galaxy flux
-      gal = gal * flux_scaling
-
-      # Load the COSMOS isotropic PSF to be used for the inputs
-      """
-      psf = galsim.InterpolatedKImage(galsim.ImageCD(fits.getdata(os.path.join(_COSMOS_DATA_DIR,'hst_cosmos_effective_psf.fits'))+0j, scale=2.*np.pi/(0.03*128)))"""
-      
-      PSF, sampling, tabDEC, tabHAstart = MakePSF.compute(1, p.img_len, p.pixel_scale, Obslength=2., Timedelta=300, Elevmin=0., F=1420)
         
+      # Generate Target Galaxy
+      flux_source = flux1400_sfg[ind]
+      e1_gal = e1[ind]
+      e2_gal = e2[ind]
+
+      # As the object is "fully" defined manually, a better galsim approach can be done here
+      gauss_gal = galsim.Gaussian(fwhm = size_sfg[ind], flux = flux_source)
+      gal = galsim.Exponential(half_light_radius = gauss_gal.half_light_radius, flux = flux_source, gsparams = gsp)
+      ellipticity = galsim.Shear(e1 = e1_gal, e2 = e2_gal)
+      gal = gal.shear(ellipticity)
+           
+
+      # Generate PSF
+      PSF, sampling, tabDEC, tabHAstart = MakePSF.compute(1, p.img_len, p.pixel_scale, Obslength=2., Timedelta=300, Elevmin=0., F=1420)  
       
       #mask = sampling[0] + np.conj(sampling[0]).T   # Make Hermitian
-    
       #psf = galsim.InterpolatedKImage(galsim.ImageCD(mask, scale = 2.*np.pi / (p.pixel_scale * p.img_len)))
       
       psf = galsim.InterpolatedImage(galsim.ImageD(np.real(PSF[0]), scale = p.pixel_scale))
         
         
-      # Normalize the PSF
-      psf = psf.withFlux(1.0)
-
       # Apply random rotation if requested
       if hasattr(p, "rotation") and p.rotation:
         rotation_angle = galsim.Angle(-np.random.rand()* 2 * np.pi,
@@ -948,17 +966,17 @@ class meerkat(Img2imgCosmos):
         psf = psf.rotate(rotation_angle)
 
       # We save the corresponding attributes for this galaxy
-      if hasattr(p, 'attributes'):
-        params = cat_param[ind]
-        attributes = {k: params[k] for k in p.attributes}
-      else:
-        attributes = None
+#       if hasattr(p, 'attributes'):
+#         params = cat_param[ind]
+#         attributes = {k: params[k] for k in p.attributes}
+#       else:
+#         attributes = None
 
       # Utility function encodes the postage stamp for serialized features
       yield galsim_utils.draw_and_encode_stamp(gal, psf,
                                                stamp_size=p.img_len,
-                                               pixel_scale=p.pixel_scale,
-                                               attributes=attributes,
-                                               fwhm_sampler=fwhm_sampler)
+                                               pixel_scale=p.pixel_scale) #,
+                                               #attributes=attributes,
+                                               #fwhm_sampler=fwhm_sampler)
         
         
