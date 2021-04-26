@@ -166,29 +166,8 @@ def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None):
     encodes it to be exported in a TFRecord.
     """
     
-    # Apply the PSF
-    
-    #psf_hst = psf
-    #gal_hst = galsim.Convolve(gal, psf_hst)
-    
     gal_hst = gal
-    psf_cfht = psf
-    
-    #gal_cfht = galsim.Convolve(gal, psf_cfht)
-
-    
-#     # Draw a kimage of the galaxy, just to figure out what mask is, there might
-#     # be more efficient ways to do this though...
-#     bounds = _BoundsI(0, stamp_size//2, -stamp_size//2, stamp_size//2-1)
-#     imG_cfht = gal_cfht.drawKImage(bounds=bounds,
-#                                  scale=2.*np.pi/(stamp_size * pixel_scale),
-#                                  recenter=False)
-#     mask_cfht = ~(np.fft.fftshift(imG_cfht.array, axes=0) == 0)
-
-#     # We draw the pixel image of the convolved image
-#     im_cfht = gal_cfht.drawImage(nx=stamp_size, ny=stamp_size, scale=pixel_scale,
-#                        method='no_pixel', use_true_center=False).array.astype('float32')
-                       
+    psf_cfht = psf                 
       
     # Draw the Fourier domain image of the galaxy, using x1 zero padding,
     # and x2 subsampling
@@ -197,56 +176,29 @@ def draw_and_encode_stamp(gal, psf, stamp_size, pixel_scale, attributes=None):
     Nk = stamp_size*interp_factor*padding_factor
     bounds = _BoundsI(0, Nk//2, -Nk//2, Nk//2-1)
     imCp_cfht = psf.drawKImage(bounds=bounds,
-                             scale=2.*np.pi/(Nk * pixel_scale / interp_factor),
-                             recenter=False)
+                                 scale=2.*np.pi/(Nk * pixel_scale / interp_factor),
+                                 recenter=False)
 
     # Transform the psf array into proper format, remove the phase
     im_psf_cfht = np.abs(np.fft.fftshift(imCp_cfht.array, axes=0)).astype('float32')
-    
-    
-#     # Generate an empty noise power spectrum
-    
-#     ps_cfht = np.zeros((stamp_size, stamp_size//2+1), dtype='float32')
-   
-    
-    
+       
     # Draw a kimage of the galaxy, just to figure out what mask is, there might
     # be more efficient ways to do this though...
     bounds = _BoundsI(0, stamp_size//2, -stamp_size//2, stamp_size//2-1)
     imG_hst = gal_hst.drawKImage(bounds=bounds,
-                         scale=2.*np.pi/(stamp_size * pixel_scale),
-                         recenter=False)
+                                 scale=2.*np.pi/(stamp_size * pixel_scale),
+                                 recenter=False)
     mask_hst = ~(np.fft.fftshift(imG_hst.array, axes=0) == 0)
 
     # We draw the pixel image of the convolved image
     im_hst = gal_hst.drawImage(nx=stamp_size, ny=stamp_size, scale=pixel_scale,
-                       method='no_pixel', use_true_center=False).array.astype('float32')
-
-
-#     # Draw the Fourier domain image of the galaxy, using x1 zero padding,
-#     # and x2 subsampling
-#     bounds = _BoundsI(0, Nk//2, -Nk//2, Nk//2-1)
-#     imCp_hst = psf_hst.drawKImage(bounds=bounds,
-#                          scale=2.*np.pi/(Nk * pixel_scale / interp_factor),
-#                          recenter=False)
-
-#     # Transform the psf array into proper format, remove the phase
-#     im_psf_hst = np.abs(np.fft.fftshift(imCp_hst.array, axes=0)).astype('float32')
-    
-#     # Generate an empty noise power spectrum
-    
-#     ps_hst = np.zeros((stamp_size, stamp_size//2+1), dtype='float32')
-
-    
+                               method='no_pixel', use_true_center=False).array.astype('float32')
     
     serialized_output = {"psf_cfht/encoded": [im_psf_cfht.tostring()],
                          "psf_cfht/format": ["raw"],
                          "image_hst/encoded" : [im_hst.tostring()],
                          "image_hst/format" : ["raw"],
-                         }
-    
-    
-    
+                         }   
 
     # Adding the parameters provided
     if attributes is not None:

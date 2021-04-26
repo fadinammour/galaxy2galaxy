@@ -805,10 +805,10 @@ class meerkat(Img2imgCosmos):
     """
     return [{
         "split": problem.DatasetSplit.TRAIN,
-        "shards": 1, #29,
+        "shards": 29,
     }, {
         "split": problem.DatasetSplit.EVAL,
-        "shards": 1, #2,
+        "shards": 2,
     }]
 
   def hparams(self, defaults, model_hparams):
@@ -816,13 +816,13 @@ class meerkat(Img2imgCosmos):
     p.pixel_scale = 1.5  
     p.img_len = 128
     p.seed = 1995
-    p.example_per_shard = 10  #1000
+    p.example_per_shard = 1000
    
     p.modality = {"targets": modalities.ModalityType.IDENTITY} 
     p.vocab_size = {"targets": None} 
     p.add_hparam("psf_cfht", None)
     p.add_hparam("rotation", False)
-    p.attributes = ['mag_auto', 'flux_radius']
+    p.attributes = ['DEC','HAstart','e1','e2','flux']
   """ Conditional image generation problem based on COSMOS sample.
   """
 
@@ -832,13 +832,6 @@ class meerkat(Img2imgCosmos):
     """
     p = self.get_hparams()
     image_hst = example["targets"]
-
-    # Clip to 1 the values of the image
-    # image = tf.clip_by_value(image, -1, 1)
-
-    # Aggregate the conditions
-    if hasattr(p, 'attributes'):
-      example['attributes'] = tf.stack([example[k] for k in p.attributes])
 
     example["targets"] = image_hst
     return example
@@ -869,7 +862,7 @@ class meerkat(Img2imgCosmos):
     # Filtering objects that are larger than 10 pixels and smaller than 70 pixels on the sky
     # typical values for the array and frequency
     
-    min_pix_size = 10 #3
+    min_pix_size = 3
     max_pix_size = 70
 
     filter_obj = np.logical_and(size_sfg > min_pix_size * p.pixel_scale, size_sfg < max_pix_size * p.pixel_scale)
@@ -880,57 +873,22 @@ class meerkat(Img2imgCosmos):
     size_sfg = size_sfg[filter_obj]      
     e1 = e1[filter_obj]              
     e2 = e2[filter_obj]   
-    
- 
         
     # Create a list of galaxy indices for this task, remember, there is a task per shard, each shard is 1000 galaxies.
     assert(task_id > -1)
     index = range(task_id*p.example_per_shard,
-                  min((task_id+1)*p.example_per_shard, Ntot_obj)) #catalog.getNObjects()))
-
+                  min((task_id+1)*p.example_per_shard, Ntot_obj)) 
     
-    # Extracts additional information about the galaxies
-    #cat_param = catalog.param_cat[catalog.orig_index]
-#     from numpy.lib.recfunctions import append_fields
-#     import numpy as np
-
-#     bparams = cat_param['bulgefit']
-#     sparams = cat_param['sersicfit']
-#     # Parameters for a 2 component fit
-#     cat_param = append_fields(cat_param, 'bulge_q', bparams[:,11])
-#     cat_param = append_fields(cat_param, 'bulge_beta', bparams[:,15])
-#     cat_param = append_fields(cat_param, 'disk_q', bparams[:,3])
-#     cat_param = append_fields(cat_param, 'disk_beta', bparams[:,7])
-#     cat_param = append_fields(cat_param, 'bulge_hlr', cat_param['hlr'][:,1])
-#     cat_param = append_fields(cat_param, 'bulge_flux_log10', np.where(cat_param['use_bulgefit'] ==1, np.log10(cat_param['flux'][:,1]), np.zeros(len(cat_param) )))
-#     cat_param = append_fields(cat_param, 'disk_hlr', cat_param['hlr'][:,2])
-#     cat_param = append_fields(cat_param, 'disk_flux_log10', np.where(cat_param['use_bulgefit'] ==1, np.log10(cat_param['flux'][:,2]), np.log10(cat_param['flux'][:,0])))
-
-#     # Parameters for a single component fit
-#     cat_param = append_fields(cat_param, 'sersic_flux_log10', np.log10(sparams[:,0]))
-#     cat_param = append_fields(cat_param, 'sersic_q', sparams[:,3])
-#     cat_param = append_fields(cat_param, 'sersic_hlr', sparams[:,1])
-#     cat_param = append_fields(cat_param, 'sersic_n', sparams[:,2])
-#     cat_param = append_fields(cat_param, 'sersic_beta', sparams[:,7])
-    
-    
-#     # Setting seeds for random number generators
-#     np.random.seed(seed=p.seed)
-#     fwhm_sampler = seeing_distribution(os.path.join(_COSMOS_DATA_DIR,'seeing_distribution.npy'),seed=p.seed)
-
-    
-#     # Compute flux scaling factor to go from HST to CFHT
-#     # The values below were taken from the following two links
-#     # https://www.cfht.hawaii.edu/Instruments/Imaging/Megacam/generalinformation.html
-#     # https://github.com/LSSTDESC/WeakLensingDeblending/blob/9f851f79f6f820f815528d11acabf64083b6e111/descwl/survey.py#L288
-#     cfht_eff_area = 8.022 #m^2 #effective area
-#     hst_eff_area = 2.4**2 * (1.-0.33**2)
-#     exp_time = 200 #seconds # exposure time #value corresponding to CFIS # provided by A. Guinot
-#     qe = 0.77 # Quantum Efficiency (converts photon number to electrons)
-#     gain = 1.62 #e-/ADU #converts electrons to ADU
-#     flux_scaling = (cfht_eff_area/hst_eff_area) * exp_time * qe / gain
-    
-    
+    cat_param = np.recarray((Ntot_obj,), 
+                            dtype=[('e1', float), 
+                                    ('e2', float), 
+                                    ('DEC', float), 
+                                    ('HAstart', float),
+                                    ('flux', float)]) 
+    cat_param['e1'] = e1
+    cat_param['e2'] = e2
+    cat_param['flux'] = flux1400_sfg
+      
     # allow the fft operation in galsim to occupy more memory
     gsp = galsim.GSParams(maximum_fft_size = 81488)  
     
@@ -948,14 +906,13 @@ class meerkat(Img2imgCosmos):
       ellipticity = galsim.Shear(e1 = e1_gal, e2 = e2_gal)
       gal = gal.shear(ellipticity)
            
-
       # Generate PSF
       PSF, sampling, tabDEC, tabHAstart = MakePSF.compute(1, p.img_len, p.pixel_scale, Obslength=2., Timedelta=300, Elevmin=0., F=1420)  
       
-      #mask = sampling[0] + np.conj(sampling[0]).T   # Make Hermitian
-      #psf = galsim.InterpolatedKImage(galsim.ImageCD(mask, scale = 2.*np.pi / (p.pixel_scale * p.img_len)))
-      
       psf = galsim.InterpolatedImage(galsim.ImageD(np.real(PSF[0]), scale = p.pixel_scale))
+               
+      cat_param['DEC'][ind] = tabDEC[0]
+      cat_param['HAstart'][ind] = tabHAstart[0]
         
         
       # Apply random rotation if requested
@@ -965,18 +922,18 @@ class meerkat(Img2imgCosmos):
         gal = gal.rotate(rotation_angle)
         psf = psf.rotate(rotation_angle)
 
-      # We save the corresponding attributes for this galaxy
-#       if hasattr(p, 'attributes'):
-#         params = cat_param[ind]
-#         attributes = {k: params[k] for k in p.attributes}
-#       else:
-#         attributes = None
 
+      # We save the corresponding attributes for this galaxy
+      if hasattr(p, 'attributes'):
+        params = cat_param[ind]
+        attributes = {k: params[k] for k in p.attributes}
+      else:
+        attributes = None
+      
+        
       # Utility function encodes the postage stamp for serialized features
       yield galsim_utils.draw_and_encode_stamp(gal, psf,
                                                stamp_size=p.img_len,
-                                               pixel_scale=p.pixel_scale) #,
-                                               #attributes=attributes,
-                                               #fwhm_sampler=fwhm_sampler)
-        
+                                               pixel_scale=p.pixel_scale, 
+                                               attributes=attributes)
         
