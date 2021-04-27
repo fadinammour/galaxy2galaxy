@@ -791,10 +791,8 @@ class Attrs2imgCosmosParametricCfht2hst(Img2imgCosmos):
                                                        attributes=attributes,
                                                        fwhm_sampler=fwhm_sampler)
 
-
-
 @registry.register_problem
-class meerkat(Img2imgCosmos):
+class meerkat_1400(Img2imgCosmos):
 
   @property
   def dataset_splits(self):
@@ -822,7 +820,7 @@ class meerkat(Img2imgCosmos):
     p.vocab_size = {"targets": None} 
     p.add_hparam("psf_cfht", None)
     p.add_hparam("rotation", False)
-    p.attributes = ['DEC','HAstart','e1','e2','flux']
+    p.attributes = ['DEC','HAstart','e1','e2','flux','index']
   """ Conditional image generation problem based on COSMOS sample.
   """
 
@@ -884,10 +882,12 @@ class meerkat(Img2imgCosmos):
                                     ('e2', float), 
                                     ('DEC', float), 
                                     ('HAstart', float),
-                                    ('flux', float)]) 
+                                    ('flux', float),
+                                    ('index', float)]) 
     cat_param['e1'] = e1
     cat_param['e2'] = e2
     cat_param['flux'] = flux1400_sfg
+    cat_param['index'] = list_index_obj
       
     # allow the fft operation in galsim to occupy more memory
     gsp = galsim.GSParams(maximum_fft_size = 81488)  
@@ -908,6 +908,153 @@ class meerkat(Img2imgCosmos):
            
       # Generate PSF
       PSF, sampling, tabDEC, tabHAstart = MakePSF.compute(1, p.img_len, p.pixel_scale, Obslength=2., Timedelta=300, Elevmin=0., F=1420)  
+      
+      psf = galsim.InterpolatedImage(galsim.ImageD(np.real(PSF[0]), scale = p.pixel_scale))
+               
+      cat_param['DEC'][ind] = tabDEC[0]
+      cat_param['HAstart'][ind] = tabHAstart[0]
+        
+        
+      # Apply random rotation if requested
+      if hasattr(p, "rotation") and p.rotation:
+        rotation_angle = galsim.Angle(-np.random.rand()* 2 * np.pi,
+                                      galsim.radians)
+        gal = gal.rotate(rotation_angle)
+        psf = psf.rotate(rotation_angle)
+
+
+      # We save the corresponding attributes for this galaxy
+      if hasattr(p, 'attributes'):
+        params = cat_param[ind]
+        attributes = {k: params[k] for k in p.attributes}
+      else:
+        attributes = None
+      
+        
+      # Utility function encodes the postage stamp for serialized features
+      yield galsim_utils.draw_and_encode_stamp(gal, psf,
+                                               stamp_size=p.img_len,
+                                               pixel_scale=p.pixel_scale, 
+                                               attributes=attributes)
+        
+        
+        
+        
+@registry.register_problem
+class meerkat_3600(Img2imgCosmos):
+
+  @property
+  def dataset_splits(self):
+    """Splits of data to produce and number of output shards for each.
+       Note that each shard will be produced in parallel.
+       We are going to split the GalSim data into shards of 1000 galaxies each,
+       with 80 shards for training, 2 shards for validation.
+    """
+    return [{
+        "split": problem.DatasetSplit.TRAIN,
+        "shards": 29,
+    }, {
+        "split": problem.DatasetSplit.EVAL,
+        "shards": 2,
+    }]
+
+  def hparams(self, defaults, model_hparams):
+    p = defaults
+    p.pixel_scale = 0.58
+    p.img_len = 128
+    p.seed = 1995
+    p.example_per_shard = 1000
+   
+    p.modality = {"targets": modalities.ModalityType.IDENTITY} 
+    p.vocab_size = {"targets": None} 
+    p.add_hparam("psf_cfht", None)
+    p.add_hparam("rotation", False)
+    p.attributes = ['DEC','HAstart','e1','e2','flux','index']
+  """ Conditional image generation problem based on COSMOS sample.
+  """
+
+  def preprocess_example(self, example, unused_mode, unused_hparams):
+    """ Preprocess the examples, can be used for further augmentation or
+    image standardization.
+    """
+    p = self.get_hparams()
+    image_hst = example["targets"]
+
+    example["targets"] = image_hst
+    return example
+
+  def generator(self, data_dir, tmp_dir, dataset_split, task_id=-1):
+    """
+    Generates and yields postage stamps obtained with GalSim.
+    """
+    p = self.get_hparams()
+    
+    # Simulating Star Forming Galaxy at 1400 MHz
+    
+    catalog = fits.open(tmp_dir+'catalogue_SFGs_complete_wide1.fits')       
+        
+    # Retrieve angular size, and ellipticities
+    
+    cat1 = catalog[1]                 # Selecting the first slice of the Fits ("Catalogue")
+    cat_data = cat1.data              # Extract data from slice
+    flux3600_sfg = cat_data['I3600']  # Flux density at 3600 MHz (in Janskys)
+
+    size_sfg = cat_data['size']       # angular size on the sky (in arcsec)
+    e1 = cat_data['e1']               # first ellipticity
+    e2 = cat_data['e2']               # second ellipticity
+    
+    
+    # Filtering objects that are larger than 10 pixels and smaller than 70 pixels on the sky
+    # typical values for the array and frequency
+    
+    min_pix_size = 3
+    max_pix_size = 40
+
+    filter_obj = np.logical_and(size_sfg > min_pix_size * p.pixel_scale, size_sfg < max_pix_size * p.pixel_scale)
+    list_index_obj = np.where(filter_obj == True)[0]  # list of indices where condition is true
+    Ntot_obj = len(list_index_obj)                    # number of objects fitting the condition
+    
+    flux3600_sfg = flux3600_sfg[filter_obj]  
+    size_sfg = size_sfg[filter_obj]      
+    e1 = e1[filter_obj]              
+    e2 = e2[filter_obj]   
+        
+    # Create a list of galaxy indices for this task, remember, there is a task per shard, each shard is 1000 galaxies.
+    assert(task_id > -1)
+    index = range(task_id*p.example_per_shard,
+                  min((task_id+1)*p.example_per_shard, Ntot_obj)) 
+    
+    cat_param = np.recarray((Ntot_obj,), 
+                            dtype=[('e1', float), 
+                                    ('e2', float), 
+                                    ('DEC', float), 
+                                    ('HAstart', float),
+                                    ('flux', float),
+                                    ('index', float)]) 
+    cat_param['e1'] = e1
+    cat_param['e2'] = e2
+    cat_param['flux'] = flux3600_sfg
+    cat_param['index'] = list_index_obj
+      
+    # allow the fft operation in galsim to occupy more memory
+    gsp = galsim.GSParams(maximum_fft_size = 81488)  
+    
+        
+    for ind in index:
+        
+      # Generate Target Galaxy
+      flux_source = flux3600_sfg[ind]
+      e1_gal = e1[ind]
+      e2_gal = e2[ind]
+
+      # As the object is "fully" defined manually, a better galsim approach can be done here
+      gauss_gal = galsim.Gaussian(fwhm = size_sfg[ind], flux = flux_source)
+      gal = galsim.Exponential(half_light_radius = gauss_gal.half_light_radius, flux = flux_source, gsparams = gsp)
+      ellipticity = galsim.Shear(e1 = e1_gal, e2 = e2_gal)
+      gal = gal.shear(ellipticity)
+           
+      # Generate PSF
+      PSF, sampling, tabDEC, tabHAstart = MakePSF.compute(1, p.img_len, p.pixel_scale, Obslength=2., Timedelta=300, Elevmin=0., F=3600)  
       
       psf = galsim.InterpolatedImage(galsim.ImageD(np.real(PSF[0]), scale = p.pixel_scale))
                
