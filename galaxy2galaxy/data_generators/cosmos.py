@@ -838,13 +838,11 @@ class meerkat_1400(Img2imgCosmos):
     """
     Generates and yields postage stamps obtained with GalSim.
     """
-    p = self.get_hparams()
-    
+    p = self.get_hparams() 
     
     # Simulating Star Forming Galaxy at 1400 MHz
     
-    catalog = fits.open(tmp_dir+'catalogue_SFGs_complete_wide1.fits')       
-    
+    catalog = fits.open(tmp_dir+'catalogue_SFGs_complete_wide1.fits')         
     
     # Retrieve angular size, and ellipticities
     
@@ -854,14 +852,13 @@ class meerkat_1400(Img2imgCosmos):
 
     size_sfg = cat_data['size']       # angular size on the sky (in arcsec)
     e1 = cat_data['e1']               # first ellipticity
-    e2 = cat_data['e2']               # second ellipticity
+    e2 = cat_data['e2']               # second ellipticity 
     
-    
-    # Filtering objects that are larger than 10 pixels and smaller than 70 pixels on the sky
+    # Filtering objects that are larger than 3 pixels and smaller than 100 pixels on the sky
     # typical values for the array and frequency
     
     min_pix_size = 3
-    max_pix_size = 70
+    max_pix_size = 100
 
     filter_obj = np.logical_and(size_sfg > min_pix_size * p.pixel_scale, size_sfg < max_pix_size * p.pixel_scale)
     list_index_obj = np.where(filter_obj == True)[0]  # list of indices where condition is true
@@ -890,8 +887,7 @@ class meerkat_1400(Img2imgCosmos):
     cat_param['index'] = list_index_obj
       
     # allow the fft operation in galsim to occupy more memory
-    gsp = galsim.GSParams(maximum_fft_size = 81488)  
-    
+    gsp = galsim.GSParams(maximum_fft_size = 81488)   
         
     for ind in index:
         
@@ -912,8 +908,7 @@ class meerkat_1400(Img2imgCosmos):
       psf = galsim.InterpolatedImage(galsim.ImageD(np.real(PSF[0]), scale = p.pixel_scale))
                
       cat_param['DEC'][ind] = tabDEC[0]
-      cat_param['HAstart'][ind] = tabHAstart[0]
-        
+      cat_param['HAstart'][ind] = tabHAstart[0]    
         
       # Apply random rotation if requested
       if hasattr(p, "rotation") and p.rotation:
@@ -922,24 +917,20 @@ class meerkat_1400(Img2imgCosmos):
         gal = gal.rotate(rotation_angle)
         psf = psf.rotate(rotation_angle)
 
-
       # We save the corresponding attributes for this galaxy
       if hasattr(p, 'attributes'):
         params = cat_param[ind]
         attributes = {k: params[k] for k in p.attributes}
       else:
-        attributes = None
-      
+        attributes = None     
         
       # Utility function encodes the postage stamp for serialized features
       yield galsim_utils.draw_and_encode_stamp(gal, psf,
                                                stamp_size=p.img_len,
                                                pixel_scale=p.pixel_scale, 
-                                               attributes=attributes)
-        
-        
-        
-        
+                                               attributes=attributes)       
+ 
+
 @registry.register_problem
 class meerkat_3600(Img2imgCosmos):
 
@@ -952,7 +943,7 @@ class meerkat_3600(Img2imgCosmos):
     """
     return [{
         "split": problem.DatasetSplit.TRAIN,
-        "shards": 29,
+        "shards": 50,
     }, {
         "split": problem.DatasetSplit.EVAL,
         "shards": 2,
@@ -989,7 +980,7 @@ class meerkat_3600(Img2imgCosmos):
     """
     p = self.get_hparams()
     
-    # Simulating Star Forming Galaxy at 1400 MHz
+    # Simulating Star Forming Galaxy at 3600 MHz
     
     catalog = fits.open(tmp_dir+'catalogue_SFGs_complete_wide1.fits')       
         
@@ -1002,13 +993,12 @@ class meerkat_3600(Img2imgCosmos):
     size_sfg = cat_data['size']       # angular size on the sky (in arcsec)
     e1 = cat_data['e1']               # first ellipticity
     e2 = cat_data['e2']               # second ellipticity
-    
-    
-    # Filtering objects that are larger than 10 pixels and smaller than 70 pixels on the sky
+      
+    # Filtering objects that are larger than 6.5 pixels and smaller than 80 pixels on the sky
     # typical values for the array and frequency
     
-    min_pix_size = 3
-    max_pix_size = 40
+    min_pix_size = 6.5
+    max_pix_size = 80
 
     filter_obj = np.logical_and(size_sfg > min_pix_size * p.pixel_scale, size_sfg < max_pix_size * p.pixel_scale)
     list_index_obj = np.where(filter_obj == True)[0]  # list of indices where condition is true
@@ -1037,8 +1027,7 @@ class meerkat_3600(Img2imgCosmos):
     cat_param['index'] = list_index_obj
       
     # allow the fft operation in galsim to occupy more memory
-    gsp = galsim.GSParams(maximum_fft_size = 81488)  
-    
+    gsp = galsim.GSParams(maximum_fft_size = 81488)   
         
     for ind in index:
         
@@ -1060,8 +1049,7 @@ class meerkat_3600(Img2imgCosmos):
                
       cat_param['DEC'][ind] = tabDEC[0]
       cat_param['HAstart'][ind] = tabHAstart[0]
-        
-        
+               
       # Apply random rotation if requested
       if hasattr(p, "rotation") and p.rotation:
         rotation_angle = galsim.Angle(-np.random.rand()* 2 * np.pi,
@@ -1069,14 +1057,12 @@ class meerkat_3600(Img2imgCosmos):
         gal = gal.rotate(rotation_angle)
         psf = psf.rotate(rotation_angle)
 
-
       # We save the corresponding attributes for this galaxy
       if hasattr(p, 'attributes'):
         params = cat_param[ind]
         attributes = {k: params[k] for k in p.attributes}
       else:
-        attributes = None
-      
+        attributes = None     
         
       # Utility function encodes the postage stamp for serialized features
       yield galsim_utils.draw_and_encode_stamp(gal, psf,

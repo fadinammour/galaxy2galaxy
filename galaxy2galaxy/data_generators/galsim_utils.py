@@ -52,7 +52,7 @@ class GalsimProblem(astroimage_utils.AstroImageProblem):
   # START: Subclass interface
   def hparams(self, defaults, model_hparams):
     p = defaults
-    p.pixel_scale = 0.58
+    p.pixel_scale = 0.58      # 1.5 for F=1400, 0.58 for F=3600
     p.img_len = 128
 
   @property
