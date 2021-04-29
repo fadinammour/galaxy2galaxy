@@ -506,7 +506,7 @@ class Attrs2imgCosmosCfht2hst(Img2imgCosmos):
     """Splits of data to produce and number of output shards for each.
        Note that each shard will be produced in parallel.
        We are going to split the GalSim data into shards of 1000 galaxies each,
-       with 80 shards for training, 2 shards for validation.
+       with 49 shards for training, 2 shards for validation.
     """
     return [{
         "split": problem.DatasetSplit.TRAIN,
@@ -651,7 +651,7 @@ class Attrs2imgCosmosParametricCfht2hst(Img2imgCosmos):
     """Splits of data to produce and number of output shards for each.
        Note that each shard will be produced in parallel.
        We are going to split the GalSim data into shards of 1000 galaxies each,
-       with 80 shards for training, 2 shards for validation.
+       with 49 shards for training, 2 shards for validation.
     """
     return [{
         "split": problem.DatasetSplit.TRAIN,
@@ -799,7 +799,7 @@ class meerkat_1400(Img2imgCosmos):
     """Splits of data to produce and number of output shards for each.
        Note that each shard will be produced in parallel.
        We are going to split the GalSim data into shards of 1000 galaxies each,
-       with 80 shards for training, 2 shards for validation.
+       with 29 shards for training, 2 shards for validation.
     """
     return [{
         "split": problem.DatasetSplit.TRAIN,
@@ -939,7 +939,7 @@ class meerkat_3600(Img2imgCosmos):
     """Splits of data to produce and number of output shards for each.
        Note that each shard will be produced in parallel.
        We are going to split the GalSim data into shards of 1000 galaxies each,
-       with 80 shards for training, 2 shards for validation.
+       with 50 shards for training, 2 shards for validation.
     """
     return [{
         "split": problem.DatasetSplit.TRAIN,
